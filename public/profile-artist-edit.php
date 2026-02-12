@@ -1,364 +1,62 @@
 <?php
-session_start();
+require_once __DIR__ . '/inc_app.php';
+require_login();
+$user = current_user();
 
-// Проверяем, авторизован ли пользователь
-if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true) {
-    header('Location: login.php');
-    exit;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['switch_role'])) {
+        $newRole = $_POST['new_role'] === 'artist' ? 'artist' : 'client';
+        execute_query('UPDATE users SET role=? WHERE id=?', 'si', [$newRole, $user['id']]);
+        redirect('profile-artist-edit.php');
+    }
+
+    if (isset($_POST['save_profile'])) {
+        execute_query('UPDATE users SET name=?, bio=?, categories=?, avatar=? WHERE id=?', 'ssssi', [trim($_POST['name']), trim($_POST['bio']), trim($_POST['categories']), trim($_POST['avatar']), $user['id']]);
+        redirect('profile-artist-edit.php');
+    }
+
+    if ($user['role'] === 'artist' && isset($_POST['add_service'])) {
+        execute_query('INSERT INTO services (user_id,title,category,description,price,image) VALUES (?,?,?,?,?,?)', 'isssds', [$user['id'], trim($_POST['title']), trim($_POST['category']), trim($_POST['description']), (float)$_POST['price'], trim($_POST['image'])]);
+        redirect('profile-artist-edit.php#services');
+    }
+
+    if ($user['role'] === 'artist' && isset($_POST['add_portfolio'])) {
+        execute_query('INSERT INTO portfolio (user_id,title,image) VALUES (?,?,?)', 'iss', [$user['id'], trim($_POST['title']), trim($_POST['image'])]);
+        redirect('profile-artist-edit.php#portfolio');
+    }
+
+    if (isset($_POST['order_status'])) {
+        execute_query('UPDATE orders SET status=? WHERE id=? AND artist_id=?', 'sii', [$_POST['status'], (int)$_POST['order_id'], $user['id']]);
+        redirect('profile-artist-edit.php#orders');
+    }
 }
+
+$user = current_user();
+$services = fetch_all('SELECT * FROM services WHERE user_id=? ORDER BY created_at DESC', 'i', [$user['id']]);
+$portfolio = fetch_all('SELECT * FROM portfolio WHERE user_id=? ORDER BY created_at DESC', 'i', [$user['id']]);
+$artistOrders = fetch_all('SELECT o.*, s.title FROM orders o JOIN services s ON s.id=o.service_id WHERE o.artist_id=? ORDER BY o.created_at DESC', 'i', [$user['id']]);
+$clientOrders = fetch_all('SELECT o.*, s.title FROM orders o JOIN services s ON s.id=o.service_id WHERE o.client_id=? ORDER BY o.created_at DESC', 'i', [$user['id']]);
+$reviews = fetch_all('SELECT r.*,u.name FROM reviews r JOIN users u ON u.id=r.client_id WHERE artist_id=? ORDER BY r.created_at DESC', 'i', [$user['id']]);
 ?>
-<!DOCTYPE html>
-<html lang="ru">
+<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Профиль</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></head><body>
+<?php include 'header.php'; ?>
+<div class="container py-4"><h1>Мой профиль</h1>
+<form method="post" class="mb-3 d-flex gap-2 align-items-center"><span>Режим:</span>
+<input type="hidden" name="switch_role" value="1"><select name="new_role" class="form-select" style="max-width:220px"><option value="client" <?= $user['role']==='client'?'selected':''; ?>>Заказчик</option><option value="artist" <?= $user['role']==='artist'?'selected':''; ?>>Художник</option></select><button class="btn btn-dark">Переключить</button></form>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Профиль - ARTlance</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap"
-    rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
-  <script src="js/main.js" defer></script>
-</head>
+<div class="card p-3 mb-4"><h5>Основные данные</h5><form method="post" class="row g-2"><input type="hidden" name="save_profile" value="1">
+<div class="col-md-6"><input class="form-control" name="name" value="<?= h($user['name']); ?>" placeholder="Имя"></div>
+<div class="col-md-6"><input class="form-control" name="avatar" value="<?= h($user['avatar']); ?>" placeholder="Ссылка на аватар"></div>
+<div class="col-12"><textarea class="form-control" name="bio" placeholder="О себе"><?= h($user['bio']); ?></textarea></div>
+<div class="col-12"><input class="form-control" name="categories" value="<?= h($user['categories']); ?>" placeholder="Категории через запятую"></div>
+<div class="col-12"><small>Дата регистрации: <?= h($user['registered_at']); ?></small></div><div class="col-12"><button class="btn btn-outline-dark">Сохранить</button></div></form></div>
 
-<body>
-  <?php include 'header.php'; ?>
-
-  <!-- Профиль -->
-  <section class="profile-section">
-    <div class="container py-5">
-      <!-- Профильная карточка -->
-      <div class="profile-card bg-white row">
-        <div class="col-4 col-lg-3 profile-col-wrapper">
-          <div class="profile-avatar-wrapper position-relative">
-            <img src="src/image/Ellipse 2.png" alt="Avatar" class="profile-avatar" id="avatarImage">
-            <div class="avatar-overlay position-absolute">
-              <span class="avatar-overlay-text">Сменить<br>аватар</span>
-            </div>
-          </div>
-          <div class="profile-contacts">
-            <a href=""><img src="src/image/icons/icons8-телеграм-100 1.svg" alt="Telegram"></a>
-            <a href=""><img src="src/image/icons/icons8-whatsapp-100 1.svg" alt="WhatsApp"></a>
-            <a href=""><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email"></a>
-          </div>
-          <div class="profile-balance">
-            <span class="balance-label">Баланс, руб</span>
-            <div class="balance-amount">
-              <img src="src/image/icons/icons8-карточка-в-использовании-100 (1) 1.svg" alt="Wallet">
-              <span>0</span>
-            </div>
-            <div class="balance-buttons d-flex justify-content-between flex-wrap">
-              <button class="btn-balance">Вывести</button>
-              <button class="btn-balance">Пополнить</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="profile-info col-8 col-lg-9">
-          <div class="d-flex align-items-center gap-3 mb-1">
-            <input type="text" class="profile-name-input" value="Екатерина Кравчюк" id="profileName">
-            <div class="profile-role-toggle">
-              <button class="role-btn active" data-role="artist">Художник <img
-                  src="src/image/icons/icons8-кисть-100 1.svg" alt=""></button>
-              <button class="role-btn" data-role="client">Заказчик <img src="src/image/icons/icons8-заказ-100 1.svg"
-                  alt=""></button>
-            </div>
-          </div>
-
-          <p class="profile-registration">Дата регистрации</p>
-
-          <div class="profile-tags">
-            <p class="profile-tag">3D-моделирование и визуализация</p>
-            <p class="profile-tag">Графический дизайн</p>
-            <p class="profile-tag">Цифровая живопись</p>
-            <button class="profile-tag-add">+</button>
-          </div>
-
-          <textarea class="profile-description" placeholder="О себе..."></textarea>
-          <button class="btn-save-profile">Сохранить</button>
-        </div>
-
-      </div>
-
-      <!-- Заказы -->
-      <div class="section-collapsible" id="ordersSection">
-        <div class="section-header" onclick="toggleSection('orders')">
-          <h2>Заказы</h2>
-          <span class="toggle-arrow" id="ordersArrow">▼</span>
-        </div>
-        <div class="section-content" id="ordersContent">
-          <div class="row g-3">
-            <div class="col-12 col-lg-6">
-              <div class="order-card bg-white">
-                <img src="src/image/Rectangle 55.png" alt="Service" class="order-image">
-                <div class="order-details">
-                  <h3 class="order-title">Название услуги</h3>
-                  <p class="order-category">3D-моделирование</p>
-                  <select class="order-status">
-                    <option class="orders-status-option" value="paid">Оплачен</option>
-                    <option class="orders-status-option" value="in-progress" selected>В работе</option>
-                    <option class="orders-status-option" value="completed">Завершено</option>
-                  </select>
-                  <p class="order-price">30 000р</p>
-                  <p class="order-time">3 часа назад</p>
-
-                </div>
-              </div>
-            </div>
-            <div class="col-12 col-lg-6">
-              <div class="order-card bg-white">
-                <img src="src/image/Rectangle 55.png" alt="Service" class="order-image">
-                <div class="order-details">
-                  <h3 class="order-title">Название услуги</h3>
-                  <p class="order-category">3D-моделирование</p>
-                  <select class="order-status">
-                    <option class="orders-status-option" value="paid">Оплачен</option>
-                    <option class="orders-status-option" value="in-progress" selected>В работе</option>
-                    <option class="orders-status-option" value="completed">Завершено</option>
-                  </select>
-                  <p class="order-price">30 000р</p>
-                  <p class="order-time">3 часа назад</p>
-
-                </div>
-              </div>
-            </div>
-            <div class="col-12 col-lg-6">
-              <div class="order-card bg-white">
-                <img src="src/image/Rectangle 55.png" alt="Service" class="order-image">
-                <div class="order-details">
-                  <h3 class="order-title">Название услуги</h3>
-                  <p class="order-category">3D-моделирование</p>
-                  <select class="order-status">
-                    <option class="orders-status-option" value="paid">Оплачен</option>
-                    <option class="orders-status-option" value="in-progress" selected>В работе</option>
-                    <option class="orders-status-option" value="completed">Завершено</option>
-                  </select>
-                  <p class="order-price">30 000р</p>
-                  <p class="order-time">3 часа назад</p>
-
-                </div>
-              </div>
-            </div>
-            <div class="col-12 col-lg-6">
-              <div class="order-card bg-white">
-                <img src="src/image/Rectangle 55.png" alt="Service" class="order-image">
-                <div class="order-details">
-                  <h3 class="order-title">Название услуги</h3>
-                  <p class="order-category">3D-моделирование</p>
-                  <select class="order-status">
-                    <option class="orders-status-option" value="paid">Оплачен</option>
-                    <option class="orders-status-option" value="in-progress" selected>В работе</option>
-                    <option class="orders-status-option" value="completed">Завершено</option>
-                  </select>
-                  <p class="order-price">30 000р</p>
-                  <p class="order-time">3 часа назад</p>
-
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="text-center mt-4">
-            <button class="btn-view-all">Смотреть всё</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Портфолио -->
-      <div class="section-collapsible" id="portfolioSection">
-        <div class="section-header" onclick="toggleSection('portfolio')">
-          <div class="section-title">
-            <h2>Портфолио</h2>
-            <button class="btn-add-card" onclick="openPortfolioModal()">+</button>
-          </div>
-          <div class="header-actions">
-            <span class="toggle-arrow" id="portfolioArrow">▼</span>
-          </div>
-        </div>
-        <div class="section-content" id="portfolioContent">
-          <div class="gallary-wrapper row g-3">
-            <div class="col-4 col-lg-3">
-              <div class="portfolio-card editable" onclick="openPortfolioModal(this)">
-                <img src="src/image/Rectangle 55.png" alt="Portfolio" class="portfolio-image">
-                <div class="portfolio-edit-overlay">
-                  <p>Редактировать</p>
-                </div>
-              </div>
-            </div>
-            <div class="col-4 col-lg-3">
-              <div class="portfolio-card" onclick="openPortfolioModal(this)">
-                <img src="src/image/Rectangle 76.png" alt="Portfolio" class="portfolio-image">
-              </div>
-            </div>
-            <div class="col-4 col-lg-3">
-              <div class="portfolio-card" onclick="openPortfolioModal(this)">
-                <img src="src/image/Rectangle 78.png" alt="Portfolio" class="portfolio-image">
-              </div>
-            </div>
-            <div class="col-4 col-lg-3">
-              <div class="portfolio-card" onclick="openPortfolioModal(this)">
-                <img src="src/image/Rectangle 76.png" alt="Portfolio" class="portfolio-image">
-              </div>
-            </div>
-            <div class="col-4 col-lg-3">
-              <div class="portfolio-card" onclick="openPortfolioModal(this)">
-                <img src="src/image/Rectangle 55.png" alt="Portfolio" class="portfolio-image">
-              </div>
-            </div>
-            <div class="col-4 col-lg-3">
-              <div class="portfolio-card add-card" onclick="openPortfolioModal()">
-                <div class="portfolio-add-overlay">
-                  <p class="add-icon">Добавить</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Услуги -->
-      <div class="section-collapsible" id="servicesSection">
-        <div class="section-header" onclick="toggleSection('services')">
-          <div class="section-title">
-            <h2>Услуги</h2>
-            <button class="btn-add-card" onclick="openServiceModal()">+</button>
-          </div>
-          <div class="header-actions">
-            <span class="toggle-arrow" id="servicesArrow">▼</span>
-          </div>
-        </div>
-        <div class="section-content" id="servicesContent">
-          <div class="services-grid row">
-            <div class="col-6 col-lg-4">
-              <div class="service-item card h-100 editable" onclick="openServiceModal(this)">
-                <img src="src/image/Rectangle 55.png" alt="Service" class="service-image">
-                <div class="service-edit-overlay">
-                  <p>Редактировать</p>
-                </div>
-                <div class="service-info">
-                  <h3 class="service-title">Название услуги</h3>
-                  <p class="service-category">3D-моделирование</p>
-                  <div class="service-bottom">
-                    <p class="service-price">от 30 000р</p>
-                    <p class="service-time">3 часа назад</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-6 col-lg-4">
-              <div class="service-item card h-100" onclick="openServiceModal(this)">
-                <img src="src/image/Rectangle 76.png" alt="Service" class="service-image">
-                <div class="service-info">
-                  <h3 class="service-title">Название услуги</h3>
-                  <p class="service-category">3D-моделирование</p>
-                  <div class="service-bottom">
-                    <p class="service-price">от 30 000р</p>
-                    <p class="service-time">3 часа назад</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-6 col-lg-4">
-              <div class="service-item card h-100 add-card" onclick="openServiceModal()">
-                <p class="add-icon">Добавить</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Отзывы -->
-      <div class="section-collapsible" id="reviewsSection">
-        <div class="section-header" onclick="toggleSection('reviews')">
-          <h2>Отзывы</h2>
-          <span class="toggle-arrow" id="reviewsArrow">▼</span>
-        </div>
-        <div class="section-content" id="reviewsContent">
-          <div class="reviews-list">
-            <div class="review-card">
-              <img src="src/image/Ellipse 2.png" alt="User" class="review-avatar">
-              <div class="review-content">
-                <h4 class="review-name">Ермакова Мария</h4>
-                <p class="review-text">Большое спасибо! Выполнено все быстро качественно. Буду обращаться еще.</p>
-              </div>
-            </div>
-
-            <div class="review-card">
-              <img src="" alt="User" class="review-avatar">
-              <div class="review-content">
-                <h4 class="review-name">Елько Александр</h4>
-                <p class="review-text">Большое спасибо!</p>
-              </div>
-            </div>
-
-            <div class="review-card">
-              <img src="src/image/Ellipse 3.png" alt="User" class="review-avatar">
-              <div class="review-content">
-                <h4 class="review-name">Строгая Наталья</h4>
-                <p class="review-text">Выполнено все быстро качественно. Буду обращаться еще.</p>
-              </div>
-            </div>
-
-            <div class="review-card">
-              <img src="src/image/Ellipse 4.png" alt="User" class="review-avatar">
-              <div class="review-content">
-                <h4 class="review-name">Лисицин Ванечка</h4>
-                <p class="review-text">СУПЕР КЛАСС ЛАЙК РЕСПЕКТ. ОЧЕНЬ КРУТО СДЕЛАЛА И НЕ ДОРОГО. БЕРИТЕ НЕ
-                  ПОЖАЛЕЕТЕ!!!!!!!!!!!</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Модальное окно для портфолио -->
-  <div class="modal-overlay" id="portfolioModal" onclick="closeModalOnOverlay(event, 'portfolioModal')">
-    <div class="modal-content">
-      <h3 class="modal-title">Портфолио</h3>
-      <input type="text" class="modal-input" placeholder="Название работы">
-      <div class="modal-image-upload large">
-        <span>Добавить изображение</span>
-      </div>
-      <div class="modal-buttons">
-        <button class="btn-modal-save" onclick="savePortfolio()">Сохранить</button>
-        <button class="btn-modal-delete" onclick="deletePortfolio()">Удалить</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Модальное окно для услуг -->
-  <div class="modal-overlay" id="serviceModal" onclick="closeModalOnOverlay(event, 'serviceModal')">
-    <div class="modal-content modal-content-large">
-      <h3 class="modal-title">Создание услуги</h3>
-      <div class="modal-image-upload">
-        <span>Добавить изображение</span>
-      </div>
-      <input type="text" class="modal-input" placeholder="Название услуги">
-      <input type="text" class="modal-input" placeholder="Категория">
-      <div class="input-group mb-3">
-        <span class="input-group-text" id="basic-addon1">Цена</span>
-        <input type="text" class="form-control" aria-label="Имя пользователя"
-          aria-describedby="basic-addon1">
-      </div>
-      <textarea class="modal-textarea" placeholder="Подробное описание..."></textarea>
-      <div class="modal-buttons">
-        <button class="btn-modal-save" onclick="saveService()">Сохранить</button>
-        <button class="btn-modal-delete" onclick="deleteService()">Удалить</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="dropdown-edit" id="portfolioModalDropdown"></div>
-  <div class="dropdown-edit" id="serviceModalDropdown"></div>
-
-  <!-- Футер -->
-    <div id="footer-placeholder"></div>
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-
-</html>
+<?php if ($user['role'] === 'client'): ?>
+  <div class="card p-3"><h4>История заказов (заказчик)</h4><?php foreach ($clientOrders as $o): ?><div class="border rounded p-2 mb-2"><?= h($o['title']); ?> — <b><?= h($o['status']); ?></b></div><?php endforeach; ?></div>
+<?php else: ?>
+  <div class="card p-3 mb-3" id="orders"><h4>Заказы художника</h4><?php foreach ($artistOrders as $o): ?><form method="post" class="d-flex gap-2 mb-2"><input type="hidden" name="order_status" value="1"><input type="hidden" name="order_id" value="<?= (int)$o['id']; ?>"><span class="me-2"><?= h($o['title']); ?></span><select name="status" class="form-select form-select-sm" style="max-width:220px"><option <?= $o['status']==='Новый'?'selected':''; ?>>Новый</option><option <?= $o['status']==='В работе'?'selected':''; ?>>В работе</option><option <?= $o['status']==='Готово'?'selected':''; ?>>Готово</option></select><button class="btn btn-sm btn-dark">Сменить статус</button></form><?php endforeach; ?></div>
+  <div class="card p-3 mb-3" id="portfolio"><h4>Портфолио</h4><form method="post" class="row g-2 mb-3"><input type="hidden" name="add_portfolio" value="1"><div class="col-md-4"><input class="form-control" name="title" placeholder="Название" required></div><div class="col-md-6"><input class="form-control" name="image" placeholder="Путь к изображению" required></div><div class="col-md-2"><button class="btn btn-dark w-100">+</button></div></form><?php foreach ($portfolio as $p): ?><div><?= h($p['title']); ?></div><?php endforeach; ?></div>
+  <div class="card p-3 mb-3" id="services"><h4>Услуги</h4><form method="post" class="row g-2 mb-3"><input type="hidden" name="add_service" value="1"><div class="col-md-4"><input class="form-control" name="title" placeholder="Название" required></div><div class="col-md-3"><input class="form-control" name="category" placeholder="Категория" required></div><div class="col-md-2"><input class="form-control" type="number" name="price" placeholder="Цена" required></div><div class="col-md-3"><input class="form-control" name="image" value="src/image/Rectangle 55.png"></div><div class="col-12"><textarea class="form-control" name="description" placeholder="Описание" required></textarea></div><div class="col-12"><button class="btn btn-dark">Добавить услугу</button></div></form><?php foreach ($services as $s): ?><div class="border p-2 mb-2"><?= h($s['title']); ?> (<?= h($s['category']); ?>)</div><?php endforeach; ?></div>
+  <div class="card p-3" id="reviews"><h4>Отзывы</h4><?php foreach ($reviews as $r): ?><div class="border rounded p-2 mb-2"><b><?= h($r['name']); ?>:</b> <?= h($r['text']); ?></div><?php endforeach; ?></div>
+<?php endif; ?>
+</div><?php include 'footer.php'; ?><script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script></body></html>

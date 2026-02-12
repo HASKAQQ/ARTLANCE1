@@ -1,0 +1,2 @@
+<?php require_once __DIR__ . '/inc_app.php'; require_login(); if (!is_admin()) redirect('index.php'); ?>
+<nav class="navbar navbar-light bg-light border-bottom"><div class="container-fluid"><a class="navbar-brand" href="admin-main.php">ARTlance Admin</a><div class="dropdown"><a href="#" data-bs-toggle="dropdown" class="text-decoration-none"><span style="display:inline-block;width:34px;height:34px;background:#000;border-radius:50%;"></span></a><ul class="dropdown-menu dropdown-menu-end"><li><a class="dropdown-item" href="logout.php">Выход</a></li></ul></div></div></nav>
