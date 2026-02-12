@@ -18,3 +18,11 @@
     </div>
   </div>
 </footer>
+
+<div class="wait-modal" id="waitModal" onclick="hideWaitModal()">
+  <div class="wait-modal-content" onclick="event.stopPropagation()">
+    <div class="wait-spinner" aria-hidden="true"></div>
+    <p>Ожидайте...</p>
+    <button type="button" class="btn wait-close-btn" onclick="hideWaitModal()">Закрыть</button>
+  </div>
+</div>

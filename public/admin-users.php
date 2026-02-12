@@ -16,11 +16,11 @@
         <div class="nav-menu">
             <h1 class="admin-menu-title">Панель администратора</h1>
             <div class="admin-menu-links">
-                <a href="admin-main.html" class="admin-menu-link">Главная</a>
-                <a href="admin-users.html" class="admin-menu-link">Пользователи</a>
-                <a href="admin-services.html" class="admin-menu-link">Услуги</a>
-                <a href="admin-orders.html" class="admin-menu-link">Заказы</a>
-                <a href="admin-transactions.html" class="admin-menu-link">Транзакции</a>
+                <a href="admin-main.php" class="admin-menu-link">Главная</a>
+                <a href="admin-users.php" class="admin-menu-link">Пользователи</a>
+                <a href="admin-services.php" class="admin-menu-link">Услуги</a>
+                <a href="admin-orders.php" class="admin-menu-link">Заказы</a>
+                <a href="admin-transactions.php" class="admin-menu-link">Транзакции</a>
             </div>
         </div>
         <div class="container nav-container">
