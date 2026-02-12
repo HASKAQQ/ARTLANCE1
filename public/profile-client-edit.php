@@ -36,8 +36,8 @@
               <span>0</span>
             </div>
             <div class="balance-buttons d-flex justify-content-between flex-wrap">
-              <button class="btn-balance">Вывести</button>
-              <button class="btn-balance">Пополнить</button>
+              <button class="btn-balance js-wait-action">Вывести</button>
+              <button class="btn-balance js-wait-action">Пополнить</button>
             </div>
           </div>
         </div>

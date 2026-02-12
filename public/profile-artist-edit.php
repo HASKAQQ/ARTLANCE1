@@ -50,8 +50,8 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
               <span>0</span>
             </div>
             <div class="balance-buttons d-flex justify-content-between flex-wrap">
-              <button class="btn-balance">Вывести</button>
-              <button class="btn-balance">Пополнить</button>
+              <button class="btn-balance js-wait-action">Вывести</button>
+              <button class="btn-balance js-wait-action">Пополнить</button>
             </div>
           </div>
         </div>
@@ -89,7 +89,7 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
           <span class="toggle-arrow" id="ordersArrow">▼</span>
         </div>
         <div class="section-content" id="ordersContent">
-          <div class="row g-3">
+          <div class="row g-3" id="servicesGrid">
             <div class="col-12 col-lg-6">
               <div class="order-card bg-white">
                 <img src="src/image/Rectangle 55.png" alt="Service" class="order-image">
@@ -178,7 +178,7 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
           </div>
         </div>
         <div class="section-content" id="portfolioContent">
-          <div class="gallary-wrapper row g-3">
+          <div class="gallary-wrapper row g-3" id="portfolioGrid">
             <div class="col-4 col-lg-3">
               <div class="portfolio-card editable" onclick="openPortfolioModal(this)">
                 <img src="src/image/Rectangle 55.png" alt="Portfolio" class="portfolio-image">
@@ -230,7 +230,7 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
           </div>
         </div>
         <div class="section-content" id="servicesContent">
-          <div class="services-grid row">
+          <div class="services-grid row" id="servicesGrid">
             <div class="col-6 col-lg-4">
               <div class="service-item card h-100 editable" onclick="openServiceModal(this)">
                 <img src="src/image/Rectangle 55.png" alt="Service" class="service-image">
@@ -319,7 +319,7 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
   <div class="modal-overlay" id="portfolioModal" onclick="closeModalOnOverlay(event, 'portfolioModal')">
     <div class="modal-content">
       <h3 class="modal-title">Портфолио</h3>
-      <input type="text" class="modal-input" placeholder="Название работы">
+      <input type="text" class="modal-input" id="portfolioTitleInput" placeholder="Название работы">
       <div class="modal-image-upload large">
         <span>Добавить изображение</span>
       </div>
@@ -337,11 +337,11 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
       <div class="modal-image-upload">
         <span>Добавить изображение</span>
       </div>
-      <input type="text" class="modal-input" placeholder="Название услуги">
-      <input type="text" class="modal-input" placeholder="Категория">
+      <input type="text" class="modal-input" id="serviceTitleInput" placeholder="Название услуги">
+      <input type="text" class="modal-input" id="serviceCategoryInput" placeholder="Категория">
       <div class="input-group mb-3">
         <span class="input-group-text" id="basic-addon1">Цена</span>
-        <input type="text" class="form-control" aria-label="Имя пользователя"
+        <input type="text" class="form-control" id="servicePriceInput" aria-label="Имя пользователя"
           aria-describedby="basic-addon1">
       </div>
       <textarea class="modal-textarea" placeholder="Подробное описание..."></textarea>

@@ -99,7 +99,7 @@
 
           <!-- Кнопка Купить -->
           <div class="order-page-buy-wrapper">
-            <button class="order-page-buy-btn">Купить</button>
+            <button class="order-page-buy-btn js-wait-action">Купить</button>
           </div>
         </div>
 
