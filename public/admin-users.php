@@ -124,7 +124,27 @@ try {
 
 <body>
     <div class="admin-nav">
+        <header class="header admin-header-no-border" id="header">
+            <nav class="navbar navbar-expand-lg navbar-light bg-white">
+                <div class="container nav-container">
+                    <button type="button" class="menu-btn" aria-label="Открыть навигацию">
+                        <img src="src/image/icons/Group 27.svg" alt="menu">
+                    </button>
+                    <a href="index.php" class="logo navbar-brand text-decoration-none admin-header-logo">ARTlance</a>
+                    <div class="admin-user-menu" id="adminUserMenu">
+                        <button class="admin-avatar-btn" id="adminAvatarBtn" type="button" aria-label="Меню администратора"></button>
+                        <div class="admin-user-dropdown" id="adminUserDropdown">
+                            <a href="logout.php" class="admin-user-dropdown-item">Выйти</a>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </header>
+
         <div class="nav-menu">
+            <div class="admin-side-header">
+                <button type="button" class="admin-menu-close" aria-label="Закрыть навигацию">✕</button>
+            </div>
             <h1 class="admin-menu-title">Панель администратора</h1>
             <div class="admin-menu-links">
                 <a href="admin-main.php" class="admin-menu-link">Главная</a>
@@ -132,15 +152,6 @@ try {
                 <a href="admin-services.php" class="admin-menu-link">Услуги</a>
                 <a href="admin-orders.php" class="admin-menu-link">Заказы</a>
                 <a href="admin-transactions.php" class="admin-menu-link">Транзакции</a>
-            </div>
-        </div>
-        <div class="container nav-container">
-            <img src="src/image/icons/Group 27.svg" alt="" class="menu-btn">
-            <div class="admin-user-menu" id="adminUserMenu">
-                <button class="admin-avatar-btn" id="adminAvatarBtn" type="button" aria-label="Меню администратора"></button>
-                <div class="admin-user-dropdown" id="adminUserDropdown">
-                    <a href="logout.php" class="admin-user-dropdown-item">Выйти</a>
-                </div>
             </div>
         </div>
     </div>
@@ -183,6 +194,9 @@ try {
                             </tr>
                         </thead>
                         <tbody>
+                        <?php if (count($users) === 0): ?>
+                            <tr><td colspan="8" class="text-center">Пользователи не найдены</td></tr>
+                        <?php else: ?>
                         <?php foreach ($users as $user): ?>
                             <tr class="align-middle">
                                 <td><?php echo (int) $user['id']; ?></td>
@@ -211,12 +225,16 @@ try {
                                 </td>
                             </tr>
                         <?php endforeach; ?>
+                        <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
         <div class="container mob">
+            <?php if (count($users) === 0): ?>
+            <div class="alert alert-secondary">Пользователи не найдены</div>
+            <?php else: ?>
             <?php foreach ($users as $user): ?>
             <div class="adm-line">
                 <div class="id">
@@ -261,6 +279,7 @@ try {
                 </div>
             </div>
             <?php endforeach; ?>
+            <?php endif; ?>
         </div>
     </div>
 
