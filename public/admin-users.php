@@ -34,6 +34,12 @@ function getDbConnection(): mysqli
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
 
+    // Миграция старых структур users (если таблица создана раньше без нужных полей)
+    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_path VARCHAR(255) DEFAULT NULL');
+    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_blocked TINYINT(1) NOT NULL DEFAULT 0');
+    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(30) NOT NULL DEFAULT "Художник"');
+    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS registered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
+
     return $conn;
 }
 
@@ -88,8 +94,14 @@ try {
         $stmt->bind_param('ss', $search, $search);
         $stmt->execute();
         $result = $stmt->get_result();
+        if ($result === false) {
+            throw new RuntimeException('Ошибка поиска пользователей: ' . $conn->error);
+        }
     } else {
         $result = $conn->query('SELECT id, name, phone, role, is_blocked, registered_at FROM users ORDER BY id DESC');
+        if ($result === false) {
+            throw new RuntimeException('Ошибка загрузки пользователей: ' . $conn->error);
+        }
     }
 
     if ($result) {
