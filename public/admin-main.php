@@ -12,20 +12,36 @@
 </head>
 
 <body>
-    <div class="admin-nav">
+        <div class="admin-nav">
+        <header class="header admin-header-no-border" id="header">
+            <nav class="navbar navbar-expand-lg navbar-light bg-white">
+                <div class="container nav-container">
+                    <button type="button" class="menu-btn" aria-label="Открыть навигацию">
+                        <img src="src/image/icons/Group 27.svg" alt="menu">
+                    </button>
+                    <a href="index.php" class="logo navbar-brand text-decoration-none admin-header-logo">ARTlance</a>
+                    <div class="admin-user-menu" id="adminUserMenu">
+                        <button class="admin-avatar-btn" id="adminAvatarBtn" type="button" aria-label="Меню администратора"></button>
+                        <div class="admin-user-dropdown" id="adminUserDropdown">
+                            <a href="logout.php" class="admin-user-dropdown-item">Выйти</a>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </header>
+
         <div class="nav-menu">
+            <div class="admin-side-header">
+                <button type="button" class="admin-menu-close" aria-label="Закрыть навигацию">✕</button>
+            </div>
             <h1 class="admin-menu-title">Панель администратора</h1>
             <div class="admin-menu-links">
-                <a href="admin-main.html" class="admin-menu-link">Главная</a>
-                <a href="admin-users.html" class="admin-menu-link">Пользователи</a>
-                <a href="admin-services.html" class="admin-menu-link">Услуги</a>
-                <a href="admin-orders.html" class="admin-menu-link">Заказы</a>
-                <a href="admin-transactions.html" class="admin-menu-link">Транзакции</a>
+                <a href="admin-main.php" class="admin-menu-link">Главная</a>
+                <a href="admin-users.php" class="admin-menu-link">Пользователи</a>
+                <a href="admin-services.php" class="admin-menu-link">Услуги</a>
+                <a href="admin-orders.php" class="admin-menu-link">Заказы</a>
+                <a href="admin-transactions.php" class="admin-menu-link">Транзакции</a>
             </div>
-        </div>
-        <div class="container nav-container">
-            <img src="src/image/icons/Group 27.svg" alt="" class="menu-btn">
-            <img src="src/image/Ellipse 4.png" alt="" class="logo">
         </div>
     </div>
     <div class="admin">
