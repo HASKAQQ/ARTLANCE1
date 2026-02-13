@@ -29,8 +29,10 @@ if ($isLoggedIn && $userPhone !== '') {
 
 $avatarSrc = $avatarPath !== '' ? htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
 $profileLink = 'profile-artist-edit.php';
+$profileMenuLabel = 'Профиль';
 if (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
     $profileLink = 'admin-main.php';
+    $profileMenuLabel = 'Панель';
 }
 ?>
 <header class="header border-bottom border-4" id="header">
@@ -61,7 +63,7 @@ if (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
               <img src="<?php echo $avatarSrc; ?>" alt="Avatar" class="header-avatar-img">
             </button>
             <div class="header-user-dropdown" id="headerUserDropdown">
-              <a href="<?php echo htmlspecialchars($profileLink, ENT_QUOTES, 'UTF-8'); ?>" class="header-user-dropdown-item">Профиль</a>
+              <a href="<?php echo htmlspecialchars($profileLink, ENT_QUOTES, 'UTF-8'); ?>" class="header-user-dropdown-item"><?php echo htmlspecialchars($profileMenuLabel, ENT_QUOTES, 'UTF-8'); ?></a>
               <a href="logout.php" class="header-user-dropdown-item">Выйти</a>
             </div>
           </div>
