@@ -48,10 +48,26 @@ function getDbConnection(): mysqli
             name VARCHAR(255) DEFAULT NULL,
             role VARCHAR(30) NOT NULL DEFAULT "Художник",
             avatar_path VARCHAR(255) DEFAULT NULL,
+            is_blocked TINYINT(1) NOT NULL DEFAULT 0,
             registered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
+
+    $columns = [];
+    $columnsResult = $conn->query('SHOW COLUMNS FROM users');
+    if ($columnsResult) {
+        while ($column = $columnsResult->fetch_assoc()) {
+            $columns[$column['Field']] = true;
+        }
+    }
+
+    if (!isset($columns['is_blocked'])) {
+        $conn->query('ALTER TABLE users ADD COLUMN is_blocked TINYINT(1) NOT NULL DEFAULT 0');
+    }
+
+    $conn->query('UPDATE users SET role = "Художник" WHERE role = "Админ" AND phone <> "' . ADMIN_PHONE . '"');
+    $conn->query('UPDATE users SET role = "Админ" WHERE phone = "' . ADMIN_PHONE . '"');
 
     return $conn;
 }
@@ -142,6 +158,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 );
                 $userStmt->bind_param('ss', $sessionPhone, $registeredAt);
                 $userStmt->execute();
+
+                if ($sessionPhone === ADMIN_PHONE) {
+                    $setAdminStmt = prepareOrFail($conn, 'UPDATE users SET role = "Админ" WHERE phone = ?');
+                    $setAdminStmt->bind_param('s', $sessionPhone);
+                    $setAdminStmt->execute();
+                } else {
+                    $setUserRoleStmt = prepareOrFail($conn, 'UPDATE users SET role = "Художник" WHERE phone = ? AND role = "Админ"');
+                    $setUserRoleStmt->bind_param('s', $sessionPhone);
+                    $setUserRoleStmt->execute();
+                }
+
+                $blockedStmt = prepareOrFail($conn, 'SELECT is_blocked FROM users WHERE phone = ? LIMIT 1');
+                $blockedStmt->bind_param('s', $sessionPhone);
+                $blockedStmt->execute();
+                $blockedRow = $blockedStmt->get_result()->fetch_assoc();
+                if ($blockedRow && (int) ($blockedRow['is_blocked'] ?? 0) === 1) {
+                    echo json_encode([
+                        'success' => false,
+                        'message' => 'Вы заблокированы администрацией сайта за нарушение правил'
+                    ]);
+                    exit;
+                }
 
                 $redirectUrl = 'profile-artist-edit.php';
                 $_SESSION['is_admin'] = false;

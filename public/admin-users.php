@@ -1,6 +1,8 @@
 <?php
 session_start();
 
+const ADMIN_PHONE = '79930170672';
+
 if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true || !isset($_SESSION['is_admin']) || $_SESSION['is_admin'] !== true) {
     header('Location: login.php');
     exit;
@@ -56,6 +58,10 @@ function getDbConnection(): mysqli
         $conn->query('ALTER TABLE users ADD COLUMN registered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
     }
 
+    // Только номер администратора может иметь роль 'Админ'
+    $conn->query('UPDATE users SET role = "Художник" WHERE role = "Админ" AND phone <> "' . ADMIN_PHONE . '"');
+    $conn->query('UPDATE users SET role = "Админ" WHERE phone = "' . ADMIN_PHONE . '"');
+
     return $conn;
 }
 
@@ -104,25 +110,62 @@ try {
     }
 
     $query = trim((string) ($_GET['q'] ?? ''));
+    $roleFilter = trim((string) ($_GET['role_filter'] ?? ''));
+    $statusFilter = trim((string) ($_GET['status_filter'] ?? ''));
+
+    $sql = 'SELECT id, name, phone, role, is_blocked, registered_at FROM users WHERE 1=1';
+    $types = '';
+    $params = [];
+
     if ($query !== '') {
+        $sql .= ' AND (name LIKE ? OR phone LIKE ?)';
         $search = '%' . $query . '%';
-        $stmt = $conn->prepare('SELECT id, name, phone, role, is_blocked, registered_at FROM users WHERE name LIKE ? OR phone LIKE ? ORDER BY id DESC');
-        $stmt->bind_param('ss', $search, $search);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result === false) {
-            throw new RuntimeException('Ошибка поиска пользователей: ' . $conn->error);
-        }
-    } else {
-        $result = $conn->query('SELECT id, name, phone, role, is_blocked, registered_at FROM users ORDER BY id DESC');
-        if ($result === false) {
-            throw new RuntimeException('Ошибка загрузки пользователей: ' . $conn->error);
-        }
+        $types .= 'ss';
+        $params[] = $search;
+        $params[] = $search;
     }
+
+    if ($roleFilter === 'artist') {
+        $sql .= ' AND role = "Художник"';
+    } elseif ($roleFilter === 'client') {
+        $sql .= ' AND role = "Заказчик"';
+    }
+
+    if ($statusFilter === 'blocked') {
+        $sql .= ' AND is_blocked = 1';
+    } elseif ($statusFilter === 'active') {
+        $sql .= ' AND is_blocked = 0';
+    }
+
+    $sql .= ' ORDER BY id DESC';
+
+    $stmt = $conn->prepare($sql);
+    if ($stmt === false) {
+        throw new RuntimeException('Ошибка загрузки пользователей: ' . $conn->error);
+    }
+
+    if ($types !== '') {
+        $stmt->bind_param($types, ...$params);
+    }
+
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($result === false) {
+        throw new RuntimeException('Ошибка поиска пользователей: ' . $conn->error);
+    }
+
 
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             $users[] = $row;
+        }
+    }
+
+    $nameSuggestions = [];
+    $nameRes = $conn->query('SELECT DISTINCT name FROM users WHERE name IS NOT NULL AND name <> "" ORDER BY name ASC LIMIT 100');
+    if ($nameRes) {
+        while ($nameRow = $nameRes->fetch_assoc()) {
+            $nameSuggestions[] = (string) $nameRow['name'];
         }
     }
 
@@ -194,7 +237,22 @@ try {
             <div class="row">
                 <div class="col-12 col-lg-6">
                     <form class="admin-search-wrapper" method="get">
-                        <input type="text" name="q" class="form-control admin-search-input" placeholder="Поиск художников" value="<?php echo htmlspecialchars((string) ($_GET['q'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                        <input type="text" name="q" list="userNameSuggestions" class="form-control admin-search-input" placeholder="Поиск по имени" value="<?php echo htmlspecialchars((string) ($_GET['q'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                        <datalist id="userNameSuggestions">
+                            <?php foreach ($nameSuggestions as $suggestion): ?>
+                                <option value="<?php echo htmlspecialchars($suggestion, ENT_QUOTES, 'UTF-8'); ?>"></option>
+                            <?php endforeach; ?>
+                        </datalist>
+                        <select name="role_filter" class="form-select ms-2" style="max-width: 180px;">
+                            <option value="">Все роли</option>
+                            <option value="artist" <?php echo (($_GET['role_filter'] ?? '') === 'artist') ? 'selected' : ''; ?>>Художник</option>
+                            <option value="client" <?php echo (($_GET['role_filter'] ?? '') === 'client') ? 'selected' : ''; ?>>Заказчик</option>
+                        </select>
+                        <select name="status_filter" class="form-select ms-2" style="max-width: 210px;">
+                            <option value="">Все статусы</option>
+                            <option value="blocked" <?php echo (($_GET['status_filter'] ?? '') === 'blocked') ? 'selected' : ''; ?>>Заблокированный</option>
+                            <option value="active" <?php echo (($_GET['status_filter'] ?? '') === 'active') ? 'selected' : ''; ?>>Активный</option>
+                        </select>
                         <button class="admin-search-btn" type="submit">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
                                 xmlns="http://www.w3.org/2000/svg">
@@ -238,7 +296,7 @@ try {
                                     </button>
                                 </td>
                                 <td>
-                                    <a href="admin-users.php?view_id=<?php echo (int) $user['id']; ?>" class="d-inline-block">
+                                    <a href="admin-user-profile.php?user_id=<?php echo (int) $user['id']; ?>" class="d-inline-block">
                                         <img src="src/image/icons/icons8-показать-100 1.svg" alt="Смотреть профиль">
                                     </a>
                                 </td>
@@ -296,7 +354,7 @@ try {
                         <div class="adm-name">Действия</div>
                         <div class="adm-id-info actions d-flex gap-2">
                             <button type="button" class="btn p-0 border-0 bg-transparent" onclick="editUserPhone(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars((string) $user['phone'], ENT_QUOTES, 'UTF-8'); ?>')"><img src="src/image/icons/icons8-редактировать-100 1.svg" alt=""></button>
-                            <a href="admin-users.php?view_id=<?php echo (int) $user['id']; ?>"><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></a>
+                            <a href="admin-user-profile.php?user_id=<?php echo (int) $user['id']; ?>"><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></a>
                             <form method="post" class="m-0 d-inline">
                                 <input type="hidden" name="action" value="toggle_block">
                                 <input type="hidden" name="user_id" value="<?php echo (int) $user['id']; ?>">
