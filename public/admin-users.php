@@ -35,10 +35,26 @@ function getDbConnection(): mysqli
     );
 
     // Миграция старых структур users (если таблица создана раньше без нужных полей)
-    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_path VARCHAR(255) DEFAULT NULL');
-    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_blocked TINYINT(1) NOT NULL DEFAULT 0');
-    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(30) NOT NULL DEFAULT "Художник"');
-    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS registered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
+    $columns = [];
+    $columnsResult = $conn->query('SHOW COLUMNS FROM users');
+    if ($columnsResult) {
+        while ($column = $columnsResult->fetch_assoc()) {
+            $columns[$column['Field']] = true;
+        }
+    }
+
+    if (!isset($columns['avatar_path'])) {
+        $conn->query('ALTER TABLE users ADD COLUMN avatar_path VARCHAR(255) DEFAULT NULL');
+    }
+    if (!isset($columns['is_blocked'])) {
+        $conn->query('ALTER TABLE users ADD COLUMN is_blocked TINYINT(1) NOT NULL DEFAULT 0');
+    }
+    if (!isset($columns['role'])) {
+        $conn->query('ALTER TABLE users ADD COLUMN role VARCHAR(30) NOT NULL DEFAULT "Художник"');
+    }
+    if (!isset($columns['registered_at'])) {
+        $conn->query('ALTER TABLE users ADD COLUMN registered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
+    }
 
     return $conn;
 }
