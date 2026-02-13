@@ -1847,7 +1847,6 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  min-height: 86px;
   background-color: #fff;
 }
 
