@@ -2051,6 +2051,31 @@ body {
 }
 
 
+.admin-filter-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.admin-filter-row .form-select {
+  max-width: 210px;
+}
+
+.admin-filter-apply-btn {
+  height: 40px;
+  padding: 0 18px;
+  font-weight: 600;
+  border: 1px solid #416d92;
+  color: #416d92;
+  background: #fff;
+}
+
+.admin-filter-apply-btn:hover {
+  background: #416d92;
+  color: #fff;
+}
+
+
 .adm-t{
   padding-top: 52px;
 }

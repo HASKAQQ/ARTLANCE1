@@ -235,32 +235,37 @@ try {
                 <div class="alert alert-success mt-3"><?php echo htmlspecialchars($successMessage, ENT_QUOTES, 'UTF-8'); ?></div>
             <?php endif; ?>
             <div class="row">
-                <div class="col-12 col-lg-6">
-                    <form class="admin-search-wrapper" method="get">
-                        <input type="text" name="q" list="userNameSuggestions" class="form-control admin-search-input" placeholder="Поиск по имени" value="<?php echo htmlspecialchars((string) ($_GET['q'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                <div class="col-12 col-lg-8">
+                    <form method="get">
+                        <div class="admin-search-wrapper">
+                            <input type="text" name="q" list="userNameSuggestions" class="form-control admin-search-input" placeholder="Поиск по имени" value="<?php echo htmlspecialchars((string) ($_GET['q'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <button class="admin-search-btn" type="submit" aria-label="Поиск">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                                    xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z"
+                                        stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                            </button>
+                        </div>
                         <datalist id="userNameSuggestions">
                             <?php foreach ($nameSuggestions as $suggestion): ?>
                                 <option value="<?php echo htmlspecialchars($suggestion, ENT_QUOTES, 'UTF-8'); ?>"></option>
                             <?php endforeach; ?>
                         </datalist>
-                        <select name="role_filter" class="form-select ms-2" style="max-width: 180px;">
-                            <option value="">Все роли</option>
-                            <option value="artist" <?php echo (($_GET['role_filter'] ?? '') === 'artist') ? 'selected' : ''; ?>>Художник</option>
-                            <option value="client" <?php echo (($_GET['role_filter'] ?? '') === 'client') ? 'selected' : ''; ?>>Заказчик</option>
-                        </select>
-                        <select name="status_filter" class="form-select ms-2" style="max-width: 210px;">
-                            <option value="">Все статусы</option>
-                            <option value="blocked" <?php echo (($_GET['status_filter'] ?? '') === 'blocked') ? 'selected' : ''; ?>>Заблокированный</option>
-                            <option value="active" <?php echo (($_GET['status_filter'] ?? '') === 'active') ? 'selected' : ''; ?>>Активный</option>
-                        </select>
-                        <button class="admin-search-btn" type="submit">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-                                xmlns="http://www.w3.org/2000/svg">
-                                <path
-                                    d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z"
-                                    stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                        </button>
+                        <div class="admin-filter-row mt-2">
+                            <select name="role_filter" class="form-select">
+                                <option value="">Все роли</option>
+                                <option value="artist" <?php echo (($_GET['role_filter'] ?? '') === 'artist') ? 'selected' : ''; ?>>Художник</option>
+                                <option value="client" <?php echo (($_GET['role_filter'] ?? '') === 'client') ? 'selected' : ''; ?>>Заказчик</option>
+                            </select>
+                            <select name="status_filter" class="form-select">
+                                <option value="">Все статусы</option>
+                                <option value="blocked" <?php echo (($_GET['status_filter'] ?? '') === 'blocked') ? 'selected' : ''; ?>>Заблокированный</option>
+                                <option value="active" <?php echo (($_GET['status_filter'] ?? '') === 'active') ? 'selected' : ''; ?>>Активный</option>
+                            </select>
+                            <button class="btn admin-filter-apply-btn" type="submit">Применить</button>
+                        </div>
                     </form>
                 </div>
             </div>
