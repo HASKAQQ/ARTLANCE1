@@ -130,7 +130,6 @@ $isBlocked = $user && (int) $user['is_blocked'] === 1;
           </div>
 
           <p class="profile-description-main">О себе...</p>
-          <p class="text-muted mt-2 mb-0">Публичный просмотр профиля: редактирование и часть личных данных скрыты.</p>
         </div>
 
       </div>
