@@ -61,6 +61,7 @@ function getDbConnection(): mysqli
     // Только номер администратора может иметь роль 'Админ'
     $conn->query('UPDATE users SET role = "Художник" WHERE role = "Админ" AND phone <> "' . ADMIN_PHONE . '"');
     $conn->query('UPDATE users SET role = "Админ" WHERE phone = "' . ADMIN_PHONE . '"');
+    $conn->query('UPDATE users SET is_blocked = 0 WHERE phone = "' . ADMIN_PHONE . '"');
 
     return $conn;
 }
@@ -323,7 +324,7 @@ try {
                                 <td>
                                     <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
                                     <span class="d-inline-block" title="Нельзя поменять номер">
-                                        <button type="button" class="btn p-0 border-0 bg-transparent" disabled>
+                                        <button type="button" class="btn p-0 border-0 bg-transparent" disabled style="cursor:not-allowed;">
                                             <img src="src/image/icons/icons8-редактировать-100 1.svg" alt="Редактировать" style="opacity:0.35;">
                                         </button>
                                     </span>
@@ -336,7 +337,7 @@ try {
                                 <td>
                                     <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
                                     <span class="d-inline-block" title="Вы находитесь в профиле">
-                                        <button type="button" class="btn p-0 border-0 bg-transparent d-inline-block" disabled>
+                                        <button type="button" class="btn p-0 border-0 bg-transparent d-inline-block" disabled style="cursor:not-allowed;">
                                             <img src="src/image/icons/icons8-показать-100 1.svg" alt="Смотреть профиль" style="opacity:0.35;">
                                         </button>
                                     </span>
@@ -352,8 +353,8 @@ try {
                                         <input type="hidden" name="user_id" value="<?php echo (int) $user['id']; ?>">
                                         <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
                                         <span class="d-inline-block" title="Нельзя заблокировать">
-                                            <button type="button" class="btn p-0 border-0 bg-transparent" disabled>
-                                                <img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="Заблокировать" style="opacity: 0.35;">
+                                            <button type="button" class="btn p-0 border-0 bg-transparent" disabled style="cursor:not-allowed;">
+                                                <img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="Заблокировать" style="opacity: 1;">
                                             </button>
                                         </span>
                                         <?php else: ?>
@@ -408,12 +409,12 @@ try {
                         <div class="adm-name">Действия</div>
                         <div class="adm-id-info actions d-flex gap-2">
                             <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
-                            <span class="d-inline-block" title="Нельзя поменять номер"><button type="button" class="btn p-0 border-0 bg-transparent" disabled><img src="src/image/icons/icons8-редактировать-100 1.svg" alt="" style="opacity:0.35;"></button></span>
+                            <span class="d-inline-block" title="Нельзя поменять номер"><button type="button" class="btn p-0 border-0 bg-transparent" disabled style="cursor:not-allowed;"><img src="src/image/icons/icons8-редактировать-100 1.svg" alt="" style="opacity:0.35;"></button></span>
                             <?php else: ?>
                             <button type="button" class="btn p-0 border-0 bg-transparent" onclick="editUserPhone(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars((string) $user['phone'], ENT_QUOTES, 'UTF-8'); ?>')"><img src="src/image/icons/icons8-редактировать-100 1.svg" alt=""></button>
                             <?php endif; ?>
                             <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
-                            <span class="d-inline-block" title="Вы находитесь в профиле"><button type="button" class="btn p-0 border-0 bg-transparent" disabled><img src="src/image/icons/icons8-показать-100 1.svg" alt="" style="opacity:0.35;"></button></span>
+                            <span class="d-inline-block" title="Вы находитесь в профиле"><button type="button" class="btn p-0 border-0 bg-transparent" disabled style="cursor:not-allowed;"><img src="src/image/icons/icons8-показать-100 1.svg" alt="" style="opacity:0.35;"></button></span>
                             <?php else: ?>
                             <a href="admin-user-profile.php?user_id=<?php echo (int) $user['id']; ?>"><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></a>
                             <?php endif; ?>
@@ -421,7 +422,7 @@ try {
                                 <input type="hidden" name="action" value="toggle_block">
                                 <input type="hidden" name="user_id" value="<?php echo (int) $user['id']; ?>">
                                 <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
-                                <span class="d-inline-block" title="Нельзя заблокировать"><button type="button" class="btn p-0 border-0 bg-transparent" disabled><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="" style="opacity:0.35;"></button></span>
+                                <span class="d-inline-block" title="Нельзя заблокировать"><button type="button" class="btn p-0 border-0 bg-transparent" disabled style="cursor:not-allowed;"><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="" style="opacity:1;"></button></span>
                                 <?php else: ?>
                                 <button type="submit" class="btn p-0 border-0 bg-transparent"><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="" style="opacity: <?php echo ((int) $user['is_blocked'] === 1) ? '0.35' : '1'; ?>;"></button>
                                 <?php endif; ?>
