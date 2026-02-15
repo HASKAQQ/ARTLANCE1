@@ -6,8 +6,6 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
     exit;
 }
 
-const ADMIN_PHONE = '79930170672';
-
 function getDbConnection(): mysqli
 {
     $conn = new mysqli('MySQL-8.0', 'root', '');
@@ -39,16 +37,6 @@ function getDbConnection(): mysqli
     return $conn;
 }
 
-function maskPhone(string $phone): string
-{
-    $digits = preg_replace('/\D+/', '', $phone) ?? '';
-    if (strlen($digits) !== 11) {
-        return 'Скрыт';
-    }
-
-    return substr($digits, 0, 1) . '********' . substr($digits, -2);
-}
-
 $errorMessage = '';
 $user = null;
 
@@ -77,70 +65,179 @@ try {
     $errorMessage = $e->getMessage();
 }
 
-$isAdminViewer = (bool) ($_SESSION['is_admin'] ?? false);
-$viewerPhone = (string) ($_SESSION['user_phone'] ?? '');
-$isOwner = $user && $viewerPhone !== '' && $viewerPhone === (string) $user['phone'];
-
 $displayName = $user ? (string) ($user['name'] ?: 'Пользователь') : 'Профиль';
-$displayRole = $user ? (string) ($user['role'] ?: 'Художник') : '';
-$displayDate = $user ? date('d.m.Y', strtotime((string) $user['registered_at'])) : '';
-$displayPhone = $user ? (($isAdminViewer || $isOwner) ? (string) $user['phone'] : maskPhone((string) $user['phone'])) : '';
+$displayRole = $user ? (string) ($user['role'] ?: 'Художник') : 'Художник';
+$displayDate = $user ? date('d.m.Y', strtotime((string) $user['registered_at'])) : '—';
 $avatarPath = $user && !empty($user['avatar_path']) ? (string) $user['avatar_path'] : 'src/image/Ellipse 2.png';
-$statusLabel = $user && (int) $user['is_blocked'] === 1 ? 'Заблокирован' : 'Активен';
+$isBlocked = $user && (int) $user['is_blocked'] === 1;
 ?>
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Профиль пользователя — ARTlance</title>
+  <title>Профиль - ARTlance</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script src="js/main.js" defer></script>
 </head>
+
 <body>
   <?php include 'header.php'; ?>
 
   <section class="profile-section">
-    <div class="container">
+    <div class="container py-5">
       <?php if ($errorMessage !== ''): ?>
         <div class="alert alert-danger"><?php echo htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8'); ?></div>
         <a href="admin-users.php" class="btn btn-secondary">Назад к пользователям</a>
       <?php else: ?>
-        <div class="profile-card bg-white row">
-          <div class="col-4 col-lg-3 profile-col-wrapper">
-            <div class="profile-avatar-wrapper position-relative">
-              <img src="<?php echo htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8'); ?>" alt="Avatar" class="profile-avatar">
-            </div>
+      <div class="profile-card bg-white row">
+        <div class="col-4 col-lg-3 profile-col-wrapper">
+          <div class="profile-avatar-wrapper position-relative">
+            <img src="<?php echo htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8'); ?>" alt="Avatar" class="profile-avatar" id="avatarImage">
+          </div>
+          <div class="profile-contacts">
+            <a href="javascript:void(0)" aria-label="Telegram"><img src="src/image/icons/icons8-телеграм-100 1.svg" alt="Telegram"></a>
+            <a href="javascript:void(0)" aria-label="WhatsApp"><img src="src/image/icons/icons8-whatsapp-100 1.svg" alt="WhatsApp"></a>
+            <a href="javascript:void(0)" aria-label="Email"><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email"></a>
           </div>
 
-          <div class="profile-info col-8 col-lg-9">
-            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-              <div>
-                <h3 class="profile-name mb-2"><?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?></h3>
-                <span class="badge text-bg-light border"><?php echo htmlspecialchars($displayRole, ENT_QUOTES, 'UTF-8'); ?></span>
-              </div>
-              <div class="text-end">
-                <a href="admin-users.php" class="btn btn-outline-secondary btn-sm">Назад</a>
+        </div>
+
+        <div class="profile-info col-8 col-lg-9">
+          <div class="d-flex align-items-center gap-3 mb-1 flex-wrap">
+            <h3 class="profile-name"><?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?></h3>
+            <div class="profile-role-toggle">
+              <button class="role-btn active" type="button" disabled>
+                <?php echo htmlspecialchars($displayRole, ENT_QUOTES, 'UTF-8'); ?> <img src="src/image/icons/icons8-кисть-100 1.svg" alt="">
+              </button>
+            </div>
+            <?php if ($isBlocked): ?>
+              <span class="badge bg-danger">Заблокирован</span>
+            <?php endif; ?>
+          </div>
+
+          <p class="profile-registration">Дата регистрации: <?php echo htmlspecialchars($displayDate, ENT_QUOTES, 'UTF-8'); ?></p>
+
+          <div class="profile-tags">
+            <p class="profile-tag">3D-моделирование и визуализация</p>
+            <p class="profile-tag">Графический дизайн</p>
+            <p class="profile-tag">Цифровая живопись</p>
+          </div>
+
+          <p class="profile-description-main">О себе...</p>
+          <p class="text-muted mt-2 mb-0">Публичный просмотр профиля: редактирование и часть личных данных скрыты.</p>
+        </div>
+
+      </div>
+
+      <div class="section-collapsible" id="portfolioSection">
+        <div class="section-header" onclick="toggleSection('portfolio')">
+          <div class="section-title">
+            <h2>Портфолио</h2>
+          </div>
+          <div class="header-actions">
+            <span class="toggle-arrow" id="portfolioArrow">▼</span>
+          </div>
+        </div>
+        <div class="section-content" id="portfolioContent">
+          <div class="gallary-wrapper row g-3">
+            <div class="col-4 col-lg-3"><div class="portfolio-card"><img src="src/image/Rectangle 55.png" alt="Portfolio" class="portfolio-image"></div></div>
+            <div class="col-4 col-lg-3"><div class="portfolio-card"><img src="src/image/Rectangle 76.png" alt="Portfolio" class="portfolio-image"></div></div>
+            <div class="col-4 col-lg-3"><div class="portfolio-card"><img src="src/image/Rectangle 78.png" alt="Portfolio" class="portfolio-image"></div></div>
+            <div class="col-4 col-lg-3"><div class="portfolio-card"><img src="src/image/Rectangle 76.png" alt="Portfolio" class="portfolio-image"></div></div>
+            <div class="col-4 col-lg-3"><div class="portfolio-card"><img src="src/image/Rectangle 55.png" alt="Portfolio" class="portfolio-image"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-collapsible" id="servicesSection">
+        <div class="section-header" onclick="toggleSection('services')">
+          <div class="section-title">
+            <h2>Услуги</h2>
+          </div>
+          <div class="header-actions">
+            <span class="toggle-arrow" id="servicesArrow">▼</span>
+          </div>
+        </div>
+        <div class="section-content" id="servicesContent">
+          <div class="services-grid row">
+            <div class="col-6 col-lg-4">
+              <div class="service-item card h-100">
+                <img src="src/image/Rectangle 55.png" alt="Service" class="service-image">
+                <div class="service-info">
+                  <h3 class="service-title">Название услуги</h3>
+                  <p class="service-category">3D-моделирование</p>
+                  <div class="service-bottom">
+                    <p class="service-price">от 30 000р</p>
+                    <p class="service-time">3 часа назад</p>
+                  </div>
+                </div>
               </div>
             </div>
-
-            <hr>
-
-            <p class="mb-2"><strong>Дата регистрации:</strong> <?php echo htmlspecialchars($displayDate, ENT_QUOTES, 'UTF-8'); ?></p>
-            <p class="mb-2"><strong>Телефон:</strong> <?php echo htmlspecialchars($displayPhone, ENT_QUOTES, 'UTF-8'); ?></p>
-            <p class="mb-3"><strong>Статус:</strong> <?php echo htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8'); ?></p>
-
-            <div class="alert alert-info py-2 mb-0" role="alert">
-              Режим просмотра: профиль открыт только для чтения. Редактирование и чувствительные данные ограничены.
+            <div class="col-6 col-lg-4">
+              <div class="service-item card h-100">
+                <img src="src/image/Rectangle 76.png" alt="Service" class="service-image">
+                <div class="service-info">
+                  <h3 class="service-title">Название услуги</h3>
+                  <p class="service-category">3D-моделирование</p>
+                  <div class="service-bottom">
+                    <p class="service-price">от 30 000р</p>
+                    <p class="service-time">3 часа назад</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-lg-4">
+              <div class="service-item card h-100">
+                <img src="src/image/Rectangle 78.png" alt="Service" class="service-image">
+                <div class="service-info">
+                  <h3 class="service-title">Название услуги</h3>
+                  <p class="service-category">3D-моделирование</p>
+                  <div class="service-bottom">
+                    <p class="service-price">от 30 000р</p>
+                    <p class="service-time">3 часа назад</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+      </div>
+
+      <div class="section-collapsible" id="reviewsSection">
+        <div class="section-header" onclick="toggleSection('reviews')">
+          <h2>Отзывы</h2>
+          <span class="toggle-arrow" id="reviewsArrow">▼</span>
+        </div>
+        <div class="section-content" id="reviewsContent">
+          <div class="reviews-list">
+            <div class="review-card">
+              <img src="src/image/Ellipse 2.png" alt="User" class="review-avatar">
+              <div class="review-content"><h4 class="review-name">Ермакова Мария</h4><p class="review-text">Большое спасибо! Выполнено все быстро качественно. Буду обращаться еще.</p></div>
+            </div>
+            <div class="review-card">
+              <img src="src/image/Ellipse 3.png" alt="User" class="review-avatar">
+              <div class="review-content"><h4 class="review-name">Елько Александр</h4><p class="review-text">Большое спасибо!</p></div>
+            </div>
+            <div class="review-card">
+              <img src="src/image/Ellipse 4.png" alt="User" class="review-avatar">
+              <div class="review-content"><h4 class="review-name">Строгая Наталья</h4><p class="review-text">Выполнено все быстро качественно. Буду обращаться еще.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
       <?php endif; ?>
     </div>
   </section>
 
+  <?php include 'footer.php'; ?>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>
