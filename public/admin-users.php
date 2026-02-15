@@ -301,9 +301,9 @@ try {
                                     </button>
                                 </td>
                                 <td>
-                                    <a href="admin-user-profile.php?user_id=<?php echo (int) $user['id']; ?>" class="d-inline-block">
+                                    <button type="button" class="btn p-0 border-0 bg-transparent d-inline-block" onclick="showAdminAlreadyPanelMessage()">
                                         <img src="src/image/icons/icons8-показать-100 1.svg" alt="Смотреть профиль">
-                                    </a>
+                                    </button>
                                 </td>
                                 <td>
                                     <form method="post" class="m-0">
@@ -359,7 +359,7 @@ try {
                         <div class="adm-name">Действия</div>
                         <div class="adm-id-info actions d-flex gap-2">
                             <button type="button" class="btn p-0 border-0 bg-transparent" onclick="editUserPhone(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars((string) $user['phone'], ENT_QUOTES, 'UTF-8'); ?>')"><img src="src/image/icons/icons8-редактировать-100 1.svg" alt=""></button>
-                            <a href="admin-user-profile.php?user_id=<?php echo (int) $user['id']; ?>"><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></a>
+                            <button type="button" class="btn p-0 border-0 bg-transparent" onclick="showAdminAlreadyPanelMessage()"><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></button>
                             <form method="post" class="m-0 d-inline">
                                 <input type="hidden" name="action" value="toggle_block">
                                 <input type="hidden" name="user_id" value="<?php echo (int) $user['id']; ?>">
@@ -405,6 +405,10 @@ try {
     <?php endif; ?>
 
     <script>
+      function showAdminAlreadyPanelMessage() {
+        alert('Вы уже находитесь в панели администратора');
+      }
+
       function editUserPhone(userId, currentPhone) {
         const newPhone = prompt('Введите новый номер (11 цифр):', currentPhone || '');
         if (newPhone === null) return;
