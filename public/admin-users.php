@@ -70,6 +70,21 @@ function normalizePhone(string $phone): string
     return preg_replace('/\D+/', '', $phone) ?? '';
 }
 
+
+function isAdminUserId(mysqli $conn, int $userId): bool
+{
+    $stmt = $conn->prepare('SELECT phone FROM users WHERE id = ? LIMIT 1');
+    if ($stmt === false) {
+        return false;
+    }
+
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+
+    return (string) ($row['phone'] ?? '') === ADMIN_PHONE;
+}
+
 $errorMessage = '';
 $successMessage = '';
 $users = [];
@@ -83,9 +98,15 @@ try {
         $userId = (int) ($_POST['user_id'] ?? 0);
 
         if ($action === 'edit_phone' && $userId > 0) {
+            if (isAdminUserId($conn, $userId)) {
+                $errorMessage = 'Нельзя изменить номер администратора.';
+            }
+
             $newPhone = normalizePhone((string) ($_POST['new_phone'] ?? ''));
 
-            if (strlen($newPhone) !== 11) {
+            if ($errorMessage !== '') {
+                // Действие запрещено для администратора
+            } elseif (strlen($newPhone) !== 11) {
                 $errorMessage = 'Номер должен содержать ровно 11 цифр.';
             } else {
                 $stmt = $conn->prepare('UPDATE users SET phone = ? WHERE id = ?');
@@ -99,12 +120,16 @@ try {
         }
 
         if ($action === 'toggle_block' && $userId > 0) {
-            $stmt = $conn->prepare('UPDATE users SET is_blocked = IF(is_blocked = 1, 0, 1) WHERE id = ?');
-            $stmt->bind_param('i', $userId);
-            if ($stmt->execute()) {
-                $successMessage = 'Статус блокировки пользователя обновлён.';
+            if (isAdminUserId($conn, $userId)) {
+                $errorMessage = 'Нельзя заблокировать администратора.';
             } else {
-                $errorMessage = 'Не удалось обновить блокировку: ' . $stmt->error;
+                $stmt = $conn->prepare('UPDATE users SET is_blocked = IF(is_blocked = 1, 0, 1) WHERE id = ?');
+            $stmt->bind_param('i', $userId);
+                if ($stmt->execute()) {
+                    $successMessage = 'Статус блокировки пользователя обновлён.';
+                } else {
+                    $errorMessage = 'Не удалось обновить блокировку: ' . $stmt->error;
+                }
             }
         }
     }
@@ -296,9 +321,15 @@ try {
                                 <td><?php echo htmlspecialchars((string) $user['role'], ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td><?php echo htmlspecialchars(date('d.m.y', strtotime((string) $user['registered_at'])), ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td>
+                                    <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
+                                    <button type="button" class="btn p-0 border-0 bg-transparent" onclick="showAdminProtectedActionMessage()" title="Нельзя изменить номер администратора">
+                                        <img src="src/image/icons/icons8-редактировать-100 1.svg" alt="Редактировать" style="opacity:0.35;">
+                                    </button>
+                                    <?php else: ?>
                                     <button type="button" class="btn p-0 border-0 bg-transparent" onclick="editUserPhone(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars((string) $user['phone'], ENT_QUOTES, 'UTF-8'); ?>')">
                                         <img src="src/image/icons/icons8-редактировать-100 1.svg" alt="Редактировать">
                                     </button>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
@@ -315,9 +346,15 @@ try {
                                     <form method="post" class="m-0">
                                         <input type="hidden" name="action" value="toggle_block">
                                         <input type="hidden" name="user_id" value="<?php echo (int) $user['id']; ?>">
+                                        <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
+                                        <button type="button" class="btn p-0 border-0 bg-transparent" onclick="showAdminProtectedActionMessage()" title="Нельзя заблокировать администратора">
+                                            <img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="Заблокировать" style="opacity: 0.35;">
+                                        </button>
+                                        <?php else: ?>
                                         <button type="submit" class="btn p-0 border-0 bg-transparent" title="<?php echo ((int) $user['is_blocked'] === 1) ? 'Разблокировать' : 'Заблокировать'; ?>">
                                             <img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="Заблокировать" style="opacity: <?php echo ((int) $user['is_blocked'] === 1) ? '0.35' : '1'; ?>;">
                                         </button>
+                                        <?php endif; ?>
                                     </form>
                                 </td>
                             </tr>
@@ -364,7 +401,11 @@ try {
                         <div class="adm-icon-wrapper"></div>
                         <div class="adm-name">Действия</div>
                         <div class="adm-id-info actions d-flex gap-2">
+                            <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
+                            <button type="button" class="btn p-0 border-0 bg-transparent" onclick="showAdminProtectedActionMessage()" title="Нельзя изменить номер администратора"><img src="src/image/icons/icons8-редактировать-100 1.svg" alt="" style="opacity:0.35;"></button>
+                            <?php else: ?>
                             <button type="button" class="btn p-0 border-0 bg-transparent" onclick="editUserPhone(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars((string) $user['phone'], ENT_QUOTES, 'UTF-8'); ?>')"><img src="src/image/icons/icons8-редактировать-100 1.svg" alt=""></button>
+                            <?php endif; ?>
                             <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
                             <button type="button" class="btn p-0 border-0 bg-transparent" onclick="showAdminAlreadyPanelMessage()"><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></button>
                             <?php else: ?>
@@ -373,7 +414,11 @@ try {
                             <form method="post" class="m-0 d-inline">
                                 <input type="hidden" name="action" value="toggle_block">
                                 <input type="hidden" name="user_id" value="<?php echo (int) $user['id']; ?>">
+                                <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
+                                <button type="button" class="btn p-0 border-0 bg-transparent" onclick="showAdminProtectedActionMessage()" title="Нельзя заблокировать администратора"><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="" style="opacity:0.35;"></button>
+                                <?php else: ?>
                                 <button type="submit" class="btn p-0 border-0 bg-transparent"><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="" style="opacity: <?php echo ((int) $user['is_blocked'] === 1) ? '0.35' : '1'; ?>;"></button>
+                                <?php endif; ?>
                             </form>
                         </div>
                     </div>
@@ -417,6 +462,10 @@ try {
     <script>
       function showAdminAlreadyPanelMessage() {
         alert('Вы уже находитесь в панели администратора');
+      }
+
+      function showAdminProtectedActionMessage() {
+        alert('Администратора нельзя заблокировать или изменить ему номер');
       }
 
       function editUserPhone(userId, currentPhone) {
