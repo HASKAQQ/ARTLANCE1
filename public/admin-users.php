@@ -322,9 +322,11 @@ try {
                                 <td><?php echo htmlspecialchars(date('d.m.y', strtotime((string) $user['registered_at'])), ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td>
                                     <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
-                                    <button type="button" class="btn p-0 border-0 bg-transparent" onclick="showAdminProtectedActionMessage()" title="Нельзя изменить номер администратора">
-                                        <img src="src/image/icons/icons8-редактировать-100 1.svg" alt="Редактировать" style="opacity:0.35;">
-                                    </button>
+                                    <span class="d-inline-block" title="Нельзя поменять номер">
+                                        <button type="button" class="btn p-0 border-0 bg-transparent" disabled>
+                                            <img src="src/image/icons/icons8-редактировать-100 1.svg" alt="Редактировать" style="opacity:0.35;">
+                                        </button>
+                                    </span>
                                     <?php else: ?>
                                     <button type="button" class="btn p-0 border-0 bg-transparent" onclick="editUserPhone(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars((string) $user['phone'], ENT_QUOTES, 'UTF-8'); ?>')">
                                         <img src="src/image/icons/icons8-редактировать-100 1.svg" alt="Редактировать">
@@ -333,9 +335,11 @@ try {
                                 </td>
                                 <td>
                                     <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
-                                    <button type="button" class="btn p-0 border-0 bg-transparent d-inline-block" onclick="showAdminAlreadyPanelMessage()">
-                                        <img src="src/image/icons/icons8-показать-100 1.svg" alt="Смотреть профиль">
-                                    </button>
+                                    <span class="d-inline-block" title="Вы находитесь в профиле">
+                                        <button type="button" class="btn p-0 border-0 bg-transparent d-inline-block" disabled>
+                                            <img src="src/image/icons/icons8-показать-100 1.svg" alt="Смотреть профиль" style="opacity:0.35;">
+                                        </button>
+                                    </span>
                                     <?php else: ?>
                                     <a href="admin-user-profile.php?user_id=<?php echo (int) $user['id']; ?>" class="d-inline-block">
                                         <img src="src/image/icons/icons8-показать-100 1.svg" alt="Смотреть профиль">
@@ -347,9 +351,11 @@ try {
                                         <input type="hidden" name="action" value="toggle_block">
                                         <input type="hidden" name="user_id" value="<?php echo (int) $user['id']; ?>">
                                         <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
-                                        <button type="button" class="btn p-0 border-0 bg-transparent" onclick="showAdminProtectedActionMessage()" title="Нельзя заблокировать администратора">
-                                            <img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="Заблокировать" style="opacity: 0.35;">
-                                        </button>
+                                        <span class="d-inline-block" title="Нельзя заблокировать">
+                                            <button type="button" class="btn p-0 border-0 bg-transparent" disabled>
+                                                <img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="Заблокировать" style="opacity: 0.35;">
+                                            </button>
+                                        </span>
                                         <?php else: ?>
                                         <button type="submit" class="btn p-0 border-0 bg-transparent" title="<?php echo ((int) $user['is_blocked'] === 1) ? 'Разблокировать' : 'Заблокировать'; ?>">
                                             <img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="Заблокировать" style="opacity: <?php echo ((int) $user['is_blocked'] === 1) ? '0.35' : '1'; ?>;">
@@ -402,12 +408,12 @@ try {
                         <div class="adm-name">Действия</div>
                         <div class="adm-id-info actions d-flex gap-2">
                             <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
-                            <button type="button" class="btn p-0 border-0 bg-transparent" onclick="showAdminProtectedActionMessage()" title="Нельзя изменить номер администратора"><img src="src/image/icons/icons8-редактировать-100 1.svg" alt="" style="opacity:0.35;"></button>
+                            <span class="d-inline-block" title="Нельзя поменять номер"><button type="button" class="btn p-0 border-0 bg-transparent" disabled><img src="src/image/icons/icons8-редактировать-100 1.svg" alt="" style="opacity:0.35;"></button></span>
                             <?php else: ?>
                             <button type="button" class="btn p-0 border-0 bg-transparent" onclick="editUserPhone(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars((string) $user['phone'], ENT_QUOTES, 'UTF-8'); ?>')"><img src="src/image/icons/icons8-редактировать-100 1.svg" alt=""></button>
                             <?php endif; ?>
                             <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
-                            <button type="button" class="btn p-0 border-0 bg-transparent" onclick="showAdminAlreadyPanelMessage()"><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></button>
+                            <span class="d-inline-block" title="Вы находитесь в профиле"><button type="button" class="btn p-0 border-0 bg-transparent" disabled><img src="src/image/icons/icons8-показать-100 1.svg" alt="" style="opacity:0.35;"></button></span>
                             <?php else: ?>
                             <a href="admin-user-profile.php?user_id=<?php echo (int) $user['id']; ?>"><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></a>
                             <?php endif; ?>
@@ -415,7 +421,7 @@ try {
                                 <input type="hidden" name="action" value="toggle_block">
                                 <input type="hidden" name="user_id" value="<?php echo (int) $user['id']; ?>">
                                 <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
-                                <button type="button" class="btn p-0 border-0 bg-transparent" onclick="showAdminProtectedActionMessage()" title="Нельзя заблокировать администратора"><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="" style="opacity:0.35;"></button>
+                                <span class="d-inline-block" title="Нельзя заблокировать"><button type="button" class="btn p-0 border-0 bg-transparent" disabled><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="" style="opacity:0.35;"></button></span>
                                 <?php else: ?>
                                 <button type="submit" class="btn p-0 border-0 bg-transparent"><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="" style="opacity: <?php echo ((int) $user['is_blocked'] === 1) ? '0.35' : '1'; ?>;"></button>
                                 <?php endif; ?>
@@ -460,14 +466,6 @@ try {
     <?php endif; ?>
 
     <script>
-      function showAdminAlreadyPanelMessage() {
-        alert('Вы уже находитесь в панели администратора');
-      }
-
-      function showAdminProtectedActionMessage() {
-        alert('Администратора нельзя заблокировать или изменить ему номер');
-      }
-
       function editUserPhone(userId, currentPhone) {
         const newPhone = prompt('Введите новый номер (11 цифр):', currentPhone || '');
         if (newPhone === null) return;
