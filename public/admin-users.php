@@ -75,9 +75,6 @@ $successMessage = '';
 $users = [];
 $viewUser = null;
 
-$sessionPhone = (string) ($_SESSION['user_phone'] ?? '');
-$isAdminPhoneViewer = ($sessionPhone === ADMIN_PHONE);
-
 try {
     $conn = getDbConnection();
 
@@ -304,7 +301,7 @@ try {
                                     </button>
                                 </td>
                                 <td>
-                                    <?php if ($isAdminPhoneViewer): ?>
+                                    <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
                                     <button type="button" class="btn p-0 border-0 bg-transparent d-inline-block" onclick="showAdminAlreadyPanelMessage()">
                                         <img src="src/image/icons/icons8-показать-100 1.svg" alt="Смотреть профиль">
                                     </button>
@@ -368,7 +365,7 @@ try {
                         <div class="adm-name">Действия</div>
                         <div class="adm-id-info actions d-flex gap-2">
                             <button type="button" class="btn p-0 border-0 bg-transparent" onclick="editUserPhone(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars((string) $user['phone'], ENT_QUOTES, 'UTF-8'); ?>')"><img src="src/image/icons/icons8-редактировать-100 1.svg" alt=""></button>
-                            <?php if ($isAdminPhoneViewer): ?>
+                            <?php if ((string) ($user['phone'] ?? '') === ADMIN_PHONE): ?>
                             <button type="button" class="btn p-0 border-0 bg-transparent" onclick="showAdminAlreadyPanelMessage()"><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></button>
                             <?php else: ?>
                             <a href="admin-user-profile.php?user_id=<?php echo (int) $user['id']; ?>"><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></a>
