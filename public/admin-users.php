@@ -61,7 +61,6 @@ function getDbConnection(): mysqli
     // Только номер администратора может иметь роль 'Админ'
     $conn->query('UPDATE users SET role = "Художник" WHERE role = "Админ" AND phone <> "' . ADMIN_PHONE . '"');
     $conn->query('UPDATE users SET role = "Админ" WHERE phone = "' . ADMIN_PHONE . '"');
-    $conn->query('UPDATE users SET is_blocked = 0 WHERE phone = "' . ADMIN_PHONE . '"');
 
     return $conn;
 }
