@@ -633,7 +633,7 @@ $showNameModal = $userName === '';
     <div class="modal-content modal-content-large" style="position:relative;">
       <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closeServiceEditor()"></button>
       <h3 class="modal-title">Создание услуги</h3>
-      <form method="post" enctype="multipart/form-data" id="serviceForm">
+      <form method="post" enctype="multipart/form-data" id="serviceForm" class="service-modal-form">
         <input type="hidden" name="service_action" id="serviceAction" value="save_service">
         <input type="hidden" name="service_id" id="serviceId" value="0">
         <div class="modal-image-upload">
@@ -641,12 +641,19 @@ $showNameModal = $userName === '';
           <input type="file" name="service_image" id="serviceImage" class="d-none" accept="image/png,image/jpeg,image/webp">
         </div>
         <input type="text" class="modal-input" name="service_title" id="serviceTitle" placeholder="Название услуги" required>
-        <input type="text" class="modal-input" name="service_category" id="serviceCategory" placeholder="Категория" required>
+        <select class="modal-input" name="service_category" id="serviceCategory" required>
+          <option value="">Категория</option>
+          <option value="3D-моделирование">3D-моделирование</option>
+          <option value="Графический дизайн">Графический дизайн</option>
+          <option value="Цифровая живопись">Цифровая живопись</option>
+          <option value="Иллюстрация">Иллюстрация</option>
+          <option value="Другое">Другое</option>
+        </select>
         <div class="input-group mb-3">
           <span class="input-group-text">Цена</span>
           <input type="text" class="form-control" name="service_price" id="servicePrice" placeholder="0">
         </div>
-        <textarea class="modal-textarea" name="service_description" id="serviceDescription" placeholder="Подробное описание..."></textarea>
+        <textarea class="modal-textarea service-description-textarea" name="service_description" id="serviceDescription" placeholder="Подробное описание..."></textarea>
         <div class="modal-buttons d-flex gap-2">
           <button class="btn-modal-save" type="submit">Сохранить</button>
           <button class="btn-modal-delete" type="button" onclick="deleteServiceItem()">Удалить</button>
