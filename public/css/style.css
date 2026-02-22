@@ -1274,6 +1274,10 @@ body {
   gap: 15px;
 }
 
+.toggle-arrow {
+  cursor: pointer;
+}
+
 /* Заказы */
 
 .order-card {
@@ -1550,6 +1554,16 @@ body {
     font-weight: 700;
     font-size: 32px;
   }
+}
+
+.services-grid .add-card {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.services-grid .add-card .add-icon {
+  color: #fff;
 }
 
 .review-card {
