@@ -18,7 +18,7 @@
       <div class="row align-items-center py-5">
         <div class="col-lg-6">
           <h1 class="banner-title">Найдите <span class="fw-black">ИДЕАЛЬНОГО</span> художника для вашего шедевра за 5 минут</h1>
-          <a class="btn btn-custom mt-4" href="login.html">Найти</a>
+          <a class="btn btn-custom mt-4" href="login.php">Найти</a>
         </div>
         <div class="col-lg-6 position-relative d-none d-lg-block">
           <div class="banner-spacer-desktop"></div>
@@ -173,7 +173,7 @@
       </div>
 
       <div class="text-center">
-        <a class="btn btn-load-more" href="artists.html">Смотреть еще</a>
+        <a class="btn btn-load-more" href="uslugi.php">Смотреть еще</a>
       </div>
     </div>
   </section>
