@@ -184,6 +184,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $redirectUrl = 'profile-artist-edit.php';
                 $_SESSION['is_admin'] = false;
 
+                $roleStmt = prepareOrFail($conn, 'SELECT role FROM users WHERE phone = ? LIMIT 1');
+                $roleStmt->bind_param('s', $sessionPhone);
+                $roleStmt->execute();
+                $roleRow = $roleStmt->get_result()->fetch_assoc();
+                if (($roleRow['role'] ?? '') === 'Заказчик') {
+                    $redirectUrl = 'profile-client-edit.php';
+                }
+
                 if ($sessionPhone === ADMIN_PHONE) {
                     $redirectUrl = 'admin-main.php';
                     $_SESSION['is_admin'] = true;

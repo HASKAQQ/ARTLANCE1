@@ -69,6 +69,24 @@ $errorMessage = '';
 try {
     $conn = getDbConnection();
 
+    if ($userPhone !== '' && isset($_GET['set_role'])) {
+        $setRole = (string) $_GET['set_role'];
+        if ($setRole === 'client') {
+            $stmt = prepareOrFail($conn, 'UPDATE users SET role = "Заказчик" WHERE phone = ?');
+            $stmt->bind_param('s', $userPhone);
+            $stmt->execute();
+            header('Location: profile-client-edit.php');
+            exit;
+        }
+        if ($setRole === 'artist') {
+            $stmt = prepareOrFail($conn, 'UPDATE users SET role = "Художник" WHERE phone = ?');
+            $stmt->bind_param('s', $userPhone);
+            $stmt->execute();
+            header('Location: profile-artist-edit.php');
+            exit;
+        }
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_required_name') {
         header('Content-Type: application/json');
 
@@ -265,9 +283,9 @@ $showNameModal = $userName === '';
           <div class="d-flex align-items-center gap-3 mb-1">
             <input type="text" class="profile-name-input" value="<?php echo htmlspecialchars($userName, ENT_QUOTES, "UTF-8"); ?>" id="profileName" name="profile_name" placeholder="Введите имя" required>
             <div class="profile-role-toggle">
-              <button class="role-btn active" data-role="artist">Художник <img
+              <button class="role-btn active" type="button" data-switch-url="profile-artist-edit.php?set_role=artist">Художник <img
                   src="src/image/icons/icons8-кисть-100 1.svg" alt=""></button>
-              <button class="role-btn" data-role="client">Заказчик <img src="src/image/icons/icons8-заказ-100 1.svg"
+              <button class="role-btn" type="button" data-switch-url="profile-client-edit.php?set_role=client">Заказчик <img src="src/image/icons/icons8-заказ-100 1.svg"
                   alt=""></button>
             </div>
           </div>

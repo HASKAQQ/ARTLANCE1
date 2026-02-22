@@ -220,6 +220,12 @@ const roleButtons = document.querySelectorAll('.role-btn');
 if (roleButtons.length > 0) {
   roleButtons.forEach(btn => {
     btn.addEventListener('click', function () {
+      const switchUrl = this.getAttribute('data-switch-url');
+      if (switchUrl) {
+        window.location.href = switchUrl;
+        return;
+      }
+
       roleButtons.forEach(b => b.classList.remove('active'));
       this.classList.add('active');
     });
