@@ -71,6 +71,37 @@ function getDbConnection(): mysqli
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
 
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS service_images (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            service_id INT UNSIGNED NOT NULL,
+            image_path VARCHAR(255) NOT NULL,
+            sort_order INT NOT NULL DEFAULT 0,
+            INDEX idx_service_id (service_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS portfolio_works (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_phone VARCHAR(20) NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_user_phone (user_phone)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS portfolio_images (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            work_id INT UNSIGNED NOT NULL,
+            image_path VARCHAR(255) NOT NULL,
+            sort_order INT NOT NULL DEFAULT 0,
+            INDEX idx_work_id (work_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
     return $conn;
 }
 
@@ -81,6 +112,7 @@ $registeredAt = '';
 $saveMessage = '';
 $errorMessage = '';
 $services = [];
+$portfolioWorks = [];
 
 try {
     $conn = getDbConnection();
@@ -167,6 +199,70 @@ try {
         }
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['portfolio_action'])) {
+        $portfolioAction = (string) $_POST['portfolio_action'];
+        $workId = (int) ($_POST['work_id'] ?? 0);
+
+        if ($portfolioAction === 'save_work') {
+            $workTitle = trim((string) ($_POST['work_title'] ?? ''));
+            if ($workTitle === '') {
+                $errorMessage = 'Введите название работы.';
+            } else {
+                if ($workId > 0) {
+                    $updWork = prepareOrFail($conn, 'UPDATE portfolio_works SET title = ? WHERE id = ? AND user_phone = ?');
+                    $updWork->bind_param('sis', $workTitle, $workId, $userPhone);
+                    $updWork->execute();
+                } else {
+                    $insWork = prepareOrFail($conn, 'INSERT INTO portfolio_works (user_phone, title) VALUES (?, ?)');
+                    $insWork->bind_param('ss', $userPhone, $workTitle);
+                    $insWork->execute();
+                    $workId = (int) $insWork->insert_id;
+                }
+
+                if (isset($_FILES['work_images']) && is_array($_FILES['work_images']['name'])) {
+                    $uploadDir = __DIR__ . '/uploads/portfolio';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0777, true);
+                    }
+
+                    $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+                    $sortOrder = 0;
+                    for ($i = 0; $i < count($_FILES['work_images']['name']); $i++) {
+                        if ((int) $_FILES['work_images']['error'][$i] !== UPLOAD_ERR_OK) {
+                            continue;
+                        }
+                        $tmpName = $_FILES['work_images']['tmp_name'][$i];
+                        $mime = mime_content_type($tmpName);
+                        if (!isset($allowed[$mime])) {
+                            continue;
+                        }
+                        $fileName = 'portfolio_' . preg_replace('/\D+/', '', $userPhone) . '_' . time() . '_' . $i . '.' . $allowed[$mime];
+                        $targetPath = $uploadDir . '/' . $fileName;
+                        if (move_uploaded_file($tmpName, $targetPath)) {
+                            $path = 'uploads/portfolio/' . $fileName;
+                            $insImg = prepareOrFail($conn, 'INSERT INTO portfolio_images (work_id, image_path, sort_order) VALUES (?, ?, ?)');
+                            $insImg->bind_param('isi', $workId, $path, $sortOrder);
+                            $insImg->execute();
+                            $sortOrder++;
+                        }
+                    }
+                }
+
+                $saveMessage = 'Работа портфолио сохранена.';
+            }
+        }
+
+        if ($portfolioAction === 'delete_work' && $workId > 0) {
+            $delWork = prepareOrFail($conn, 'DELETE FROM portfolio_works WHERE id = ? AND user_phone = ?');
+            $delWork->bind_param('is', $workId, $userPhone);
+            $delWork->execute();
+            $delImgs = prepareOrFail($conn, 'DELETE FROM portfolio_images WHERE work_id = ?');
+            $delImgs->bind_param('i', $workId);
+            $delImgs->execute();
+            $saveMessage = 'Работа портфолио удалена.';
+        }
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['service_action'])) {
         $serviceAction = (string) $_POST['service_action'];
 
@@ -180,40 +276,49 @@ try {
             if ($serviceTitle === '' || $serviceCategory === '') {
                 $errorMessage = 'Для услуги нужно заполнить название и категорию.';
             } else {
-                $serviceImagePath = '';
                 if ($serviceId > 0) {
-                    $serviceImageStmt = prepareOrFail($conn, 'SELECT image_path FROM artist_services WHERE id = ? AND user_phone = ? LIMIT 1');
-                    $serviceImageStmt->bind_param('is', $serviceId, $userPhone);
-                    $serviceImageStmt->execute();
-                    $serviceImageRow = $serviceImageStmt->get_result()->fetch_assoc();
-                    $serviceImagePath = (string) ($serviceImageRow['image_path'] ?? '');
-                }
-
-                if (isset($_FILES['service_image']) && $_FILES['service_image']['error'] === UPLOAD_ERR_OK) {
-                    $tmpName = $_FILES['service_image']['tmp_name'];
-                    $mime = mime_content_type($tmpName);
-                    $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
-                    if (isset($allowed[$mime])) {
-                        $uploadDir = __DIR__ . '/uploads/services';
-                        if (!is_dir($uploadDir)) {
-                            mkdir($uploadDir, 0777, true);
-                        }
-                        $fileName = 'service_' . preg_replace('/\D+/', '', $userPhone) . '_' . time() . '.' . $allowed[$mime];
-                        $targetPath = $uploadDir . '/' . $fileName;
-                        if (move_uploaded_file($tmpName, $targetPath)) {
-                            $serviceImagePath = 'uploads/services/' . $fileName;
-                        }
-                    }
-                }
-
-                if ($serviceId > 0) {
-                    $upd = prepareOrFail($conn, 'UPDATE artist_services SET title = ?, category = ?, price = ?, description = ?, image_path = ? WHERE id = ? AND user_phone = ?');
-                    $upd->bind_param('ssdssis', $serviceTitle, $serviceCategory, $servicePrice, $serviceDescription, $serviceImagePath, $serviceId, $userPhone);
+                    $upd = prepareOrFail($conn, 'UPDATE artist_services SET title = ?, category = ?, price = ?, description = ? WHERE id = ? AND user_phone = ?');
+                    $upd->bind_param('ssdsis', $serviceTitle, $serviceCategory, $servicePrice, $serviceDescription, $serviceId, $userPhone);
                     $upd->execute();
                 } else {
-                    $ins = prepareOrFail($conn, 'INSERT INTO artist_services (user_phone, title, category, price, description, image_path) VALUES (?, ?, ?, ?, ?, ?)');
-                    $ins->bind_param('sssdss', $userPhone, $serviceTitle, $serviceCategory, $servicePrice, $serviceDescription, $serviceImagePath);
+                    $ins = prepareOrFail($conn, 'INSERT INTO artist_services (user_phone, title, category, price, description, image_path) VALUES (?, ?, ?, ?, ?, "")');
+                    $ins->bind_param('sssds', $userPhone, $serviceTitle, $serviceCategory, $servicePrice, $serviceDescription);
                     $ins->execute();
+                    $serviceId = (int) $ins->insert_id;
+                }
+
+                if (isset($_FILES['service_images']) && is_array($_FILES['service_images']['name'])) {
+                    $uploadDir = __DIR__ . '/uploads/services';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0777, true);
+                    }
+
+                    $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+                    $sortOrder = 0;
+                    for ($i = 0; $i < count($_FILES['service_images']['name']); $i++) {
+                        if ((int) $_FILES['service_images']['error'][$i] !== UPLOAD_ERR_OK) {
+                            continue;
+                        }
+                        $tmpName = $_FILES['service_images']['tmp_name'][$i];
+                        $mime = mime_content_type($tmpName);
+                        if (!isset($allowed[$mime])) {
+                            continue;
+                        }
+                        $fileName = 'service_' . preg_replace('/\D+/', '', $userPhone) . '_' . time() . '_' . $i . '.' . $allowed[$mime];
+                        $targetPath = $uploadDir . '/' . $fileName;
+                        if (move_uploaded_file($tmpName, $targetPath)) {
+                            $path = 'uploads/services/' . $fileName;
+                            $insImg = prepareOrFail($conn, 'INSERT INTO service_images (service_id, image_path, sort_order) VALUES (?, ?, ?)');
+                            $insImg->bind_param('isi', $serviceId, $path, $sortOrder);
+                            $insImg->execute();
+                            if ($sortOrder === 0) {
+                                $setMain = prepareOrFail($conn, 'UPDATE artist_services SET image_path = ? WHERE id = ?');
+                                $setMain->bind_param('si', $path, $serviceId);
+                                $setMain->execute();
+                            }
+                            $sortOrder++;
+                        }
+                    }
                 }
 
                 $saveMessage = 'Услуга сохранена.';
@@ -226,6 +331,9 @@ try {
                 $del = prepareOrFail($conn, 'DELETE FROM artist_services WHERE id = ? AND user_phone = ?');
                 $del->bind_param('is', $serviceId, $userPhone);
                 $del->execute();
+                $delImgs = prepareOrFail($conn, 'DELETE FROM service_images WHERE service_id = ?');
+                $delImgs->bind_param('i', $serviceId);
+                $delImgs->execute();
                 $saveMessage = 'Услуга удалена.';
             }
         }
@@ -283,11 +391,42 @@ try {
             }
         }
     }
+    $portfolioStmt = prepareOrFail($conn, 'SELECT id, title, created_at FROM portfolio_works WHERE user_phone = ? ORDER BY id DESC');
+    $portfolioStmt->bind_param('s', $userPhone);
+    $portfolioStmt->execute();
+    $portfolioRes = $portfolioStmt->get_result();
+    while ($work = $portfolioRes->fetch_assoc()) {
+        $imgStmt = prepareOrFail($conn, 'SELECT image_path FROM portfolio_images WHERE work_id = ? ORDER BY sort_order ASC, id ASC');
+        $workId = (int) $work['id'];
+        $imgStmt->bind_param('i', $workId);
+        $imgStmt->execute();
+        $imgRes = $imgStmt->get_result();
+        $images = [];
+        while ($img = $imgRes->fetch_assoc()) {
+            $images[] = (string) $img['image_path'];
+        }
+        $work['images'] = $images;
+        $portfolioWorks[] = $work;
+    }
+
     $servicesStmt = prepareOrFail($conn, 'SELECT id, title, category, price, description, image_path, created_at FROM artist_services WHERE user_phone = ? ORDER BY id DESC');
     $servicesStmt->bind_param('s', $userPhone);
     $servicesStmt->execute();
     $servicesRes = $servicesStmt->get_result();
     while ($serviceRow = $servicesRes->fetch_assoc()) {
+        $imgStmt = prepareOrFail($conn, 'SELECT image_path FROM service_images WHERE service_id = ? ORDER BY sort_order ASC, id ASC');
+        $serviceId = (int) $serviceRow['id'];
+        $imgStmt->bind_param('i', $serviceId);
+        $imgStmt->execute();
+        $imgRes = $imgStmt->get_result();
+        $images = [];
+        while ($img = $imgRes->fetch_assoc()) {
+            $images[] = (string) $img['image_path'];
+        }
+        if (count($images) === 0 && (string) ($serviceRow['image_path'] ?? '') !== '') {
+            $images[] = (string) $serviceRow['image_path'];
+        }
+        $serviceRow['images'] = $images;
         $services[] = $serviceRow;
     }
 
@@ -483,7 +622,7 @@ $showNameModal = $userName === '';
         <div class="section-header" onclick="toggleSection('portfolio')">
           <div class="section-title">
             <h2>Портфолио</h2>
-            <button class="btn-add-card" onclick="openPortfolioModal()">+</button>
+            <button class="btn-add-card" type="button" onclick="event.stopPropagation(); openPortfolioEditor()">+</button>
           </div>
           <div class="header-actions">
             <span class="toggle-arrow" id="portfolioArrow">▼</span>
@@ -491,36 +630,20 @@ $showNameModal = $userName === '';
         </div>
         <div class="section-content" id="portfolioContent">
           <div class="gallary-wrapper row g-3">
+            <?php foreach ($portfolioWorks as $work): ?>
             <div class="col-4 col-lg-3">
-              <div class="portfolio-card editable" onclick="openPortfolioModal(this)">
-                <img src="src/image/Rectangle 55.png" alt="Portfolio" class="portfolio-image">
-                <div class="portfolio-edit-overlay">
-                  <p>Редактировать</p>
-                </div>
+              <div class="portfolio-card" onclick='openPortfolioEditor(<?php echo json_encode($work, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'>
+                <?php $workImages = (array) ($work['images'] ?? []); ?>
+                <img src="<?php echo htmlspecialchars((string) (($workImages[0] ?? '') ?: 'src/image/Rectangle 55.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="Portfolio" class="portfolio-image js-slider-image" data-images='<?php echo htmlspecialchars(json_encode($workImages, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>' data-index="0">
+                <?php if (count($workImages) > 1): ?>
+                  <button type="button" class="slider-arrow slider-arrow-left" onclick="event.stopPropagation(); slideCardImage(this, -1)">‹</button>
+                  <button type="button" class="slider-arrow slider-arrow-right" onclick="event.stopPropagation(); slideCardImage(this, 1)">›</button>
+                <?php endif; ?>
               </div>
             </div>
+            <?php endforeach; ?>
             <div class="col-4 col-lg-3">
-              <div class="portfolio-card" onclick="openPortfolioModal(this)">
-                <img src="src/image/Rectangle 76.png" alt="Portfolio" class="portfolio-image">
-              </div>
-            </div>
-            <div class="col-4 col-lg-3">
-              <div class="portfolio-card" onclick="openPortfolioModal(this)">
-                <img src="src/image/Rectangle 78.png" alt="Portfolio" class="portfolio-image">
-              </div>
-            </div>
-            <div class="col-4 col-lg-3">
-              <div class="portfolio-card" onclick="openPortfolioModal(this)">
-                <img src="src/image/Rectangle 76.png" alt="Portfolio" class="portfolio-image">
-              </div>
-            </div>
-            <div class="col-4 col-lg-3">
-              <div class="portfolio-card" onclick="openPortfolioModal(this)">
-                <img src="src/image/Rectangle 55.png" alt="Portfolio" class="portfolio-image">
-              </div>
-            </div>
-            <div class="col-4 col-lg-3">
-              <div class="portfolio-card add-card" onclick="openPortfolioModal()">
+              <div class="portfolio-card add-card" onclick="openPortfolioEditor()">
                 <div class="portfolio-add-overlay">
                   <p class="add-icon">Добавить</p>
                 </div>
@@ -546,7 +669,12 @@ $showNameModal = $userName === '';
             <?php foreach ($services as $service): ?>
             <div class="col-6 col-lg-4">
               <div class="service-item card h-100" onclick='openServiceEditor(<?php echo json_encode($service, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'>
-                <img src="<?php echo htmlspecialchars((string) ($service['image_path'] ?: 'src/image/Rectangle 55.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="Service" class="service-image">
+                <?php $serviceImages = (array) ($service['images'] ?? []); ?>
+                <img src="<?php echo htmlspecialchars((string) (($serviceImages[0] ?? '') ?: 'src/image/Rectangle 55.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="Service" class="service-image js-slider-image" data-images='<?php echo htmlspecialchars(json_encode($serviceImages, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>' data-index="0">
+                <?php if (count($serviceImages) > 1): ?>
+                  <button type="button" class="slider-arrow slider-arrow-left" onclick="event.stopPropagation(); slideCardImage(this, -1)">‹</button>
+                  <button type="button" class="slider-arrow slider-arrow-right" onclick="event.stopPropagation(); slideCardImage(this, 1)">›</button>
+                <?php endif; ?>
                 <div class="service-info">
                   <h3 class="service-title"><?php echo htmlspecialchars((string) $service['title'], ENT_QUOTES, 'UTF-8'); ?></h3>
                   <p class="service-category"><?php echo htmlspecialchars((string) $service['category'], ENT_QUOTES, 'UTF-8'); ?></p>
@@ -615,16 +743,22 @@ $showNameModal = $userName === '';
 
   <!-- Модальное окно для портфолио -->
   <div class="modal-overlay" id="portfolioModal" onclick="closeModalOnOverlay(event, 'portfolioModal')">
-    <div class="modal-content">
-      <h3 class="modal-title">Портфолио</h3>
-      <input type="text" class="modal-input" placeholder="Название работы">
-      <div class="modal-image-upload large">
-        <span>Добавить изображение</span>
-      </div>
-      <div class="modal-buttons">
-        <button class="btn-modal-save" onclick="savePortfolio()">Сохранить</button>
-        <button class="btn-modal-delete" onclick="deletePortfolio()">Удалить</button>
-      </div>
+    <div class="modal-content" style="position:relative;">
+      <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closePortfolioEditor()"></button>
+      <h3 class="modal-title">Создание работы</h3>
+      <form method="post" enctype="multipart/form-data" id="portfolioForm" class="service-modal-form">
+        <input type="hidden" name="portfolio_action" value="save_work">
+        <input type="hidden" name="work_id" id="workId" value="0">
+        <input type="text" class="modal-input" name="work_title" id="workTitle" placeholder="Название работы" required>
+        <div class="modal-image-upload large">
+          <span id="workImagesLabel">Добавить изображения</span>
+          <input type="file" name="work_images[]" id="workImages" class="d-none" accept="image/png,image/jpeg,image/webp" multiple>
+        </div>
+        <div class="modal-buttons d-flex gap-2">
+          <button class="btn-modal-save" type="submit">Сохранить</button>
+          <button class="btn-modal-delete" type="button" onclick="deletePortfolioWork()">Удалить</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -637,8 +771,8 @@ $showNameModal = $userName === '';
         <input type="hidden" name="service_action" id="serviceAction" value="save_service">
         <input type="hidden" name="service_id" id="serviceId" value="0">
         <div class="modal-image-upload">
-          <span id="serviceImageLabel">Добавить изображение</span>
-          <input type="file" name="service_image" id="serviceImage" class="d-none" accept="image/png,image/jpeg,image/webp">
+          <span id="serviceImageLabel">Добавить изображения</span>
+          <input type="file" name="service_images[]" id="serviceImage" class="d-none" accept="image/png,image/jpeg,image/webp" multiple>
         </div>
         <input type="text" class="modal-input" name="service_title" id="serviceTitle" placeholder="Название услуги" required>
         <select class="modal-input" name="service_category" id="serviceCategory" required>
@@ -762,7 +896,7 @@ $showNameModal = $userName === '';
       if (servicePriceEl) servicePriceEl.value = '';
       if (serviceDescriptionEl) serviceDescriptionEl.value = '';
       if (serviceImageEl) serviceImageEl.value = '';
-      if (serviceImageLabelEl) serviceImageLabelEl.textContent = 'Добавить изображение';
+      if (serviceImageLabelEl) serviceImageLabelEl.textContent = 'Добавить изображения';
 
       if (serviceData && typeof serviceData === 'object') {
         if (serviceIdEl) serviceIdEl.value = String(serviceData.id || 0);
@@ -770,8 +904,8 @@ $showNameModal = $userName === '';
         if (serviceCategoryEl) serviceCategoryEl.value = String(serviceData.category || '');
         if (servicePriceEl) servicePriceEl.value = String(serviceData.price || '');
         if (serviceDescriptionEl) serviceDescriptionEl.value = String(serviceData.description || '');
-        if (serviceImageLabelEl && serviceData.image_path) {
-          serviceImageLabelEl.textContent = 'Изображение: ' + String(serviceData.image_path).split('/').pop();
+        if (serviceImageLabelEl && Array.isArray(serviceData.images) && serviceData.images.length > 0) {
+          serviceImageLabelEl.textContent = 'Изображений: ' + serviceData.images.length;
         }
       }
 
@@ -805,10 +939,88 @@ $showNameModal = $userName === '';
       serviceImageLabelEl.style.cursor = 'pointer';
       serviceImageLabelEl.addEventListener('click', () => serviceImageEl.click());
       serviceImageEl.addEventListener('change', function () {
-        if (this.files && this.files[0]) {
-          serviceImageLabelEl.textContent = 'Изображение: ' + this.files[0].name;
+        if (this.files && this.files.length > 0) {
+          serviceImageLabelEl.textContent = 'Выбрано изображений: ' + this.files.length;
         }
       });
+    }
+
+
+    const portfolioModalEl = document.getElementById('portfolioModal');
+    const workIdEl = document.getElementById('workId');
+    const workTitleEl = document.getElementById('workTitle');
+    const workImagesEl = document.getElementById('workImages');
+    const workImagesLabelEl = document.getElementById('workImagesLabel');
+
+    function openPortfolioEditor(workData = null) {
+      if (!portfolioModalEl) return;
+      if (workIdEl) workIdEl.value = '0';
+      if (workTitleEl) workTitleEl.value = '';
+      if (workImagesEl) workImagesEl.value = '';
+      if (workImagesLabelEl) workImagesLabelEl.textContent = 'Добавить изображения';
+
+      if (workData && typeof workData === 'object') {
+        if (workIdEl) workIdEl.value = String(workData.id || 0);
+        if (workTitleEl) workTitleEl.value = String(workData.title || '');
+        if (workImagesLabelEl && Array.isArray(workData.images) && workData.images.length > 0) {
+          workImagesLabelEl.textContent = 'Изображений: ' + workData.images.length;
+        }
+      }
+
+      portfolioModalEl.style.display = 'block';
+      const portfolioModalDropdown = document.getElementById('portfolioModalDropdown');
+      if (portfolioModalDropdown) portfolioModalDropdown.style.display = 'flex';
+    }
+
+    function closePortfolioEditor() {
+      if (portfolioModalEl) portfolioModalEl.style.display = 'none';
+      const portfolioModalDropdown = document.getElementById('portfolioModalDropdown');
+      if (portfolioModalDropdown) portfolioModalDropdown.style.display = 'none';
+    }
+
+    function deletePortfolioWork() {
+      if (!workIdEl || workIdEl.value === '0') {
+        alert('Сначала выберите существующую работу для удаления.');
+        return;
+      }
+      if (!confirm('Удалить работу портфолио?')) return;
+
+      const form = document.createElement('form');
+      form.method = 'post';
+      form.innerHTML = '<input type="hidden" name="portfolio_action" value="delete_work">' +
+        '<input type="hidden" name="work_id" value="' + workIdEl.value + '">';
+      document.body.appendChild(form);
+      form.submit();
+    }
+
+    if (workImagesEl && workImagesLabelEl) {
+      workImagesLabelEl.style.cursor = 'pointer';
+      workImagesLabelEl.addEventListener('click', () => workImagesEl.click());
+      workImagesEl.addEventListener('change', function () {
+        if (this.files && this.files.length > 0) {
+          workImagesLabelEl.textContent = 'Выбрано изображений: ' + this.files.length;
+        }
+      });
+    }
+
+    function slideCardImage(buttonEl, direction) {
+      const card = buttonEl.closest('.portfolio-card, .service-item');
+      if (!card) return;
+      const imageEl = card.querySelector('.js-slider-image');
+      if (!imageEl) return;
+
+      let images = [];
+      try {
+        images = JSON.parse(imageEl.getAttribute('data-images') || '[]');
+      } catch (e) {
+        images = [];
+      }
+      if (!Array.isArray(images) || images.length <= 1) return;
+
+      let current = parseInt(imageEl.getAttribute('data-index') || '0', 10);
+      current = (current + direction + images.length) % images.length;
+      imageEl.setAttribute('data-index', String(current));
+      imageEl.src = images[current];
     }
 
   </script>

@@ -1475,6 +1475,28 @@ body {
   height: 460px;
 }
 
+
+
+.slider-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 12;
+}
+
+.slider-arrow-left { left: 8px; }
+.slider-arrow-right { right: 8px; }
+
 .service-edit-overlay {
   position: absolute;
   height: 100%;
