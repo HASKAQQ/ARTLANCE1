@@ -644,7 +644,6 @@ $showNameModal = $userName === '';
             <?php endforeach; ?>
             <div class="col-4 col-lg-3">
               <div class="portfolio-card add-card" onclick="openPortfolioEditor()">
-                <p class="add-icon" aria-hidden="true">+</p>
               </div>
             </div>
           </div>
@@ -686,7 +685,6 @@ $showNameModal = $userName === '';
             <?php endforeach; ?>
             <div class="col-6 col-lg-4">
               <div class="service-item card h-100 add-card" onclick="openServiceEditor()">
-                <p class="add-icon" aria-hidden="true">+</p>
               </div>
             </div>
           </div>
