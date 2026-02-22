@@ -56,6 +56,21 @@ function getDbConnection(): mysqli
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
 
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS artist_services (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_phone VARCHAR(20) NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            category VARCHAR(255) NOT NULL,
+            price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            description TEXT DEFAULT NULL,
+            image_path VARCHAR(255) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_user_phone (user_phone)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
     return $conn;
 }
 
@@ -65,6 +80,7 @@ $avatarPath = '';
 $registeredAt = '';
 $saveMessage = '';
 $errorMessage = '';
+$services = [];
 
 try {
     $conn = getDbConnection();
@@ -151,6 +167,70 @@ try {
         }
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['service_action'])) {
+        $serviceAction = (string) $_POST['service_action'];
+
+        if ($serviceAction === 'save_service') {
+            $serviceId = (int) ($_POST['service_id'] ?? 0);
+            $serviceTitle = trim((string) ($_POST['service_title'] ?? ''));
+            $serviceCategory = trim((string) ($_POST['service_category'] ?? ''));
+            $servicePrice = (float) str_replace(',', '.', (string) ($_POST['service_price'] ?? '0'));
+            $serviceDescription = trim((string) ($_POST['service_description'] ?? ''));
+
+            if ($serviceTitle === '' || $serviceCategory === '') {
+                $errorMessage = 'Для услуги нужно заполнить название и категорию.';
+            } else {
+                $serviceImagePath = '';
+                if ($serviceId > 0) {
+                    $serviceImageStmt = prepareOrFail($conn, 'SELECT image_path FROM artist_services WHERE id = ? AND user_phone = ? LIMIT 1');
+                    $serviceImageStmt->bind_param('is', $serviceId, $userPhone);
+                    $serviceImageStmt->execute();
+                    $serviceImageRow = $serviceImageStmt->get_result()->fetch_assoc();
+                    $serviceImagePath = (string) ($serviceImageRow['image_path'] ?? '');
+                }
+
+                if (isset($_FILES['service_image']) && $_FILES['service_image']['error'] === UPLOAD_ERR_OK) {
+                    $tmpName = $_FILES['service_image']['tmp_name'];
+                    $mime = mime_content_type($tmpName);
+                    $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+                    if (isset($allowed[$mime])) {
+                        $uploadDir = __DIR__ . '/uploads/services';
+                        if (!is_dir($uploadDir)) {
+                            mkdir($uploadDir, 0777, true);
+                        }
+                        $fileName = 'service_' . preg_replace('/\D+/', '', $userPhone) . '_' . time() . '.' . $allowed[$mime];
+                        $targetPath = $uploadDir . '/' . $fileName;
+                        if (move_uploaded_file($tmpName, $targetPath)) {
+                            $serviceImagePath = 'uploads/services/' . $fileName;
+                        }
+                    }
+                }
+
+                if ($serviceId > 0) {
+                    $upd = prepareOrFail($conn, 'UPDATE artist_services SET title = ?, category = ?, price = ?, description = ?, image_path = ? WHERE id = ? AND user_phone = ?');
+                    $upd->bind_param('ssdssis', $serviceTitle, $serviceCategory, $servicePrice, $serviceDescription, $serviceImagePath, $serviceId, $userPhone);
+                    $upd->execute();
+                } else {
+                    $ins = prepareOrFail($conn, 'INSERT INTO artist_services (user_phone, title, category, price, description, image_path) VALUES (?, ?, ?, ?, ?, ?)');
+                    $ins->bind_param('sssdss', $userPhone, $serviceTitle, $serviceCategory, $servicePrice, $serviceDescription, $serviceImagePath);
+                    $ins->execute();
+                }
+
+                $saveMessage = 'Услуга сохранена.';
+            }
+        }
+
+        if ($serviceAction === 'delete_service') {
+            $serviceId = (int) ($_POST['service_id'] ?? 0);
+            if ($serviceId > 0) {
+                $del = prepareOrFail($conn, 'DELETE FROM artist_services WHERE id = ? AND user_phone = ?');
+                $del->bind_param('is', $serviceId, $userPhone);
+                $del->execute();
+                $saveMessage = 'Услуга удалена.';
+            }
+        }
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
         $name = trim((string) ($_POST['profile_name'] ?? ''));
 
@@ -203,6 +283,14 @@ try {
             }
         }
     }
+    $servicesStmt = prepareOrFail($conn, 'SELECT id, title, category, price, description, image_path, created_at FROM artist_services WHERE user_phone = ? ORDER BY id DESC');
+    $servicesStmt->bind_param('s', $userPhone);
+    $servicesStmt->execute();
+    $servicesRes = $servicesStmt->get_result();
+    while ($serviceRow = $servicesRes->fetch_assoc()) {
+        $services[] = $serviceRow;
+    }
+
 } catch (Throwable $e) {
     $errorMessage = 'Ошибка при сохранении профиля: ' . $e->getMessage();
 }
@@ -447,7 +535,7 @@ $showNameModal = $userName === '';
         <div class="section-header" onclick="toggleSection('services')">
           <div class="section-title">
             <h2>Услуги</h2>
-            <button class="btn-add-card" onclick="openServiceModal()">+</button>
+            <button class="btn-add-card" type="button" onclick="event.stopPropagation(); openServiceEditor()">+</button>
           </div>
           <div class="header-actions">
             <span class="toggle-arrow" id="servicesArrow">▼</span>
@@ -455,37 +543,23 @@ $showNameModal = $userName === '';
         </div>
         <div class="section-content" id="servicesContent">
           <div class="services-grid row">
+            <?php foreach ($services as $service): ?>
             <div class="col-6 col-lg-4">
-              <div class="service-item card h-100 editable" onclick="openServiceModal(this)">
-                <img src="src/image/Rectangle 55.png" alt="Service" class="service-image">
-                <div class="service-edit-overlay">
-                  <p>Редактировать</p>
-                </div>
+              <div class="service-item card h-100" onclick='openServiceEditor(<?php echo json_encode($service, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'>
+                <img src="<?php echo htmlspecialchars((string) ($service['image_path'] ?: 'src/image/Rectangle 55.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="Service" class="service-image">
                 <div class="service-info">
-                  <h3 class="service-title">Название услуги</h3>
-                  <p class="service-category">3D-моделирование</p>
+                  <h3 class="service-title"><?php echo htmlspecialchars((string) $service['title'], ENT_QUOTES, 'UTF-8'); ?></h3>
+                  <p class="service-category"><?php echo htmlspecialchars((string) $service['category'], ENT_QUOTES, 'UTF-8'); ?></p>
                   <div class="service-bottom">
-                    <p class="service-price">от 30 000р</p>
-                    <p class="service-time">3 часа назад</p>
+                    <p class="service-price">от <?php echo (int) $service['price']; ?>р</p>
+                    <p class="service-time"><?php echo htmlspecialchars(date('d.m.Y', strtotime((string) $service['created_at'])), ENT_QUOTES, 'UTF-8'); ?></p>
                   </div>
                 </div>
               </div>
             </div>
+            <?php endforeach; ?>
             <div class="col-6 col-lg-4">
-              <div class="service-item card h-100" onclick="openServiceModal(this)">
-                <img src="src/image/Rectangle 76.png" alt="Service" class="service-image">
-                <div class="service-info">
-                  <h3 class="service-title">Название услуги</h3>
-                  <p class="service-category">3D-моделирование</p>
-                  <div class="service-bottom">
-                    <p class="service-price">от 30 000р</p>
-                    <p class="service-time">3 часа назад</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-6 col-lg-4">
-              <div class="service-item card h-100 add-card" onclick="openServiceModal()">
+              <div class="service-item card h-100 add-card" onclick="openServiceEditor()">
                 <p class="add-icon">Добавить</p>
               </div>
             </div>
@@ -556,27 +630,33 @@ $showNameModal = $userName === '';
 
   <!-- Модальное окно для услуг -->
   <div class="modal-overlay" id="serviceModal" onclick="closeModalOnOverlay(event, 'serviceModal')">
-    <div class="modal-content modal-content-large">
+    <div class="modal-content modal-content-large" style="position:relative;">
+      <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closeServiceEditor()"></button>
       <h3 class="modal-title">Создание услуги</h3>
-      <div class="modal-image-upload">
-        <span>Добавить изображение</span>
-      </div>
-      <input type="text" class="modal-input" placeholder="Название услуги">
-      <input type="text" class="modal-input" placeholder="Категория">
-      <div class="input-group mb-3">
-        <span class="input-group-text" id="basic-addon1">Цена</span>
-        <input type="text" class="form-control" aria-label="Имя пользователя"
-          aria-describedby="basic-addon1">
-      </div>
-      <textarea class="modal-textarea" placeholder="Подробное описание..."></textarea>
-      <div class="modal-buttons">
-        <button class="btn-modal-save" onclick="saveService()">Сохранить</button>
-        <button class="btn-modal-delete" onclick="deleteService()">Удалить</button>
-      </div>
+      <form method="post" enctype="multipart/form-data" id="serviceForm">
+        <input type="hidden" name="service_action" id="serviceAction" value="save_service">
+        <input type="hidden" name="service_id" id="serviceId" value="0">
+        <div class="modal-image-upload">
+          <span id="serviceImageLabel">Добавить изображение</span>
+          <input type="file" name="service_image" id="serviceImage" class="d-none" accept="image/png,image/jpeg,image/webp">
+        </div>
+        <input type="text" class="modal-input" name="service_title" id="serviceTitle" placeholder="Название услуги" required>
+        <input type="text" class="modal-input" name="service_category" id="serviceCategory" placeholder="Категория" required>
+        <div class="input-group mb-3">
+          <span class="input-group-text">Цена</span>
+          <input type="text" class="form-control" name="service_price" id="servicePrice" placeholder="0">
+        </div>
+        <textarea class="modal-textarea" name="service_description" id="serviceDescription" placeholder="Подробное описание..."></textarea>
+        <div class="modal-buttons d-flex gap-2">
+          <button class="btn-modal-save" type="submit">Сохранить</button>
+          <button class="btn-modal-delete" type="button" onclick="deleteServiceItem()">Удалить</button>
+        </div>
+      </form>
     </div>
   </div>
 
   <div class="dropdown-edit" id="portfolioModalDropdown"></div>
+
   <div class="dropdown-edit" id="serviceModalDropdown"></div>
 
   <!-- Футер -->
@@ -656,6 +736,74 @@ $showNameModal = $userName === '';
         }
       });
     }
+
+
+    const serviceModalEl = document.getElementById('serviceModal');
+    const serviceIdEl = document.getElementById('serviceId');
+    const serviceTitleEl = document.getElementById('serviceTitle');
+    const serviceCategoryEl = document.getElementById('serviceCategory');
+    const servicePriceEl = document.getElementById('servicePrice');
+    const serviceDescriptionEl = document.getElementById('serviceDescription');
+    const serviceImageEl = document.getElementById('serviceImage');
+    const serviceImageLabelEl = document.getElementById('serviceImageLabel');
+
+    function openServiceEditor(serviceData = null) {
+      if (!serviceModalEl) return;
+      if (serviceIdEl) serviceIdEl.value = '0';
+      if (serviceTitleEl) serviceTitleEl.value = '';
+      if (serviceCategoryEl) serviceCategoryEl.value = '';
+      if (servicePriceEl) servicePriceEl.value = '';
+      if (serviceDescriptionEl) serviceDescriptionEl.value = '';
+      if (serviceImageEl) serviceImageEl.value = '';
+      if (serviceImageLabelEl) serviceImageLabelEl.textContent = 'Добавить изображение';
+
+      if (serviceData && typeof serviceData === 'object') {
+        if (serviceIdEl) serviceIdEl.value = String(serviceData.id || 0);
+        if (serviceTitleEl) serviceTitleEl.value = String(serviceData.title || '');
+        if (serviceCategoryEl) serviceCategoryEl.value = String(serviceData.category || '');
+        if (servicePriceEl) servicePriceEl.value = String(serviceData.price || '');
+        if (serviceDescriptionEl) serviceDescriptionEl.value = String(serviceData.description || '');
+        if (serviceImageLabelEl && serviceData.image_path) {
+          serviceImageLabelEl.textContent = 'Изображение: ' + String(serviceData.image_path).split('/').pop();
+        }
+      }
+
+      serviceModalEl.style.display = 'block';
+      const serviceModalDropdown = document.getElementById('serviceModalDropdown');
+      if (serviceModalDropdown) serviceModalDropdown.style.display = 'flex';
+    }
+
+    function closeServiceEditor() {
+      if (serviceModalEl) serviceModalEl.style.display = 'none';
+      const serviceModalDropdown = document.getElementById('serviceModalDropdown');
+      if (serviceModalDropdown) serviceModalDropdown.style.display = 'none';
+    }
+
+    function deleteServiceItem() {
+      if (!serviceIdEl || serviceIdEl.value === '0') {
+        alert('Сначала выберите существующую услугу для удаления.');
+        return;
+      }
+      if (!confirm('Удалить услугу?')) return;
+
+      const form = document.createElement('form');
+      form.method = 'post';
+      form.innerHTML = '<input type="hidden" name="service_action" value="delete_service">' +
+        '<input type="hidden" name="service_id" value="' + serviceIdEl.value + '">';
+      document.body.appendChild(form);
+      form.submit();
+    }
+
+    if (serviceImageEl && serviceImageLabelEl) {
+      serviceImageLabelEl.style.cursor = 'pointer';
+      serviceImageLabelEl.addEventListener('click', () => serviceImageEl.click());
+      serviceImageEl.addEventListener('change', function () {
+        if (this.files && this.files[0]) {
+          serviceImageLabelEl.textContent = 'Изображение: ' + this.files[0].name;
+        }
+      });
+    }
+
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
