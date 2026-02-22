@@ -644,9 +644,7 @@ $showNameModal = $userName === '';
             <?php endforeach; ?>
             <div class="col-4 col-lg-3">
               <div class="portfolio-card add-card" onclick="openPortfolioEditor()">
-                <div class="portfolio-add-overlay">
-                  <p class="add-icon">Добавить</p>
-                </div>
+                <p class="add-icon">Добавить</p>
               </div>
             </div>
           </div>
