@@ -754,6 +754,7 @@ $showNameModal = $userName === '';
           <span id="workImagesLabel">Добавить изображения</span>
           <input type="file" name="work_images[]" id="workImages" class="d-none" accept="image/png,image/jpeg,image/webp" multiple>
         </div>
+        <div class="modal-images-preview" id="workImagesPreview"></div>
         <div class="modal-buttons d-flex gap-2">
           <button class="btn-modal-save" type="submit">Сохранить</button>
           <button class="btn-modal-delete" type="button" onclick="deletePortfolioWork()">Удалить</button>
@@ -774,6 +775,7 @@ $showNameModal = $userName === '';
           <span id="serviceImageLabel">Добавить изображения</span>
           <input type="file" name="service_images[]" id="serviceImage" class="d-none" accept="image/png,image/jpeg,image/webp" multiple>
         </div>
+        <div class="modal-images-preview" id="serviceImagesPreview"></div>
         <input type="text" class="modal-input" name="service_title" id="serviceTitle" placeholder="Название услуги" required>
         <select class="modal-input" name="service_category" id="serviceCategory" required>
           <option value="">Категория</option>
@@ -887,6 +889,21 @@ $showNameModal = $userName === '';
     const serviceDescriptionEl = document.getElementById('serviceDescription');
     const serviceImageEl = document.getElementById('serviceImage');
     const serviceImageLabelEl = document.getElementById('serviceImageLabel');
+    const serviceImagesPreviewEl = document.getElementById('serviceImagesPreview');
+
+    function renderPreviewImages(container, images) {
+      if (!container) return;
+      container.innerHTML = '';
+      if (!Array.isArray(images) || images.length === 0) return;
+
+      images.forEach((src) => {
+        const img = document.createElement('img');
+        img.className = 'modal-image-thumb';
+        img.src = src;
+        img.alt = 'preview';
+        container.appendChild(img);
+      });
+    }
 
     function openServiceEditor(serviceData = null) {
       if (!serviceModalEl) return;
@@ -897,6 +914,7 @@ $showNameModal = $userName === '';
       if (serviceDescriptionEl) serviceDescriptionEl.value = '';
       if (serviceImageEl) serviceImageEl.value = '';
       if (serviceImageLabelEl) serviceImageLabelEl.textContent = 'Добавить изображения';
+      renderPreviewImages(serviceImagesPreviewEl, []);
 
       if (serviceData && typeof serviceData === 'object') {
         if (serviceIdEl) serviceIdEl.value = String(serviceData.id || 0);
@@ -906,6 +924,7 @@ $showNameModal = $userName === '';
         if (serviceDescriptionEl) serviceDescriptionEl.value = String(serviceData.description || '');
         if (serviceImageLabelEl && Array.isArray(serviceData.images) && serviceData.images.length > 0) {
           serviceImageLabelEl.textContent = 'Изображений: ' + serviceData.images.length;
+          renderPreviewImages(serviceImagesPreviewEl, serviceData.images);
         }
       }
 
@@ -941,6 +960,8 @@ $showNameModal = $userName === '';
       serviceImageEl.addEventListener('change', function () {
         if (this.files && this.files.length > 0) {
           serviceImageLabelEl.textContent = 'Выбрано изображений: ' + this.files.length;
+          const arr = Array.from(this.files).map((f) => URL.createObjectURL(f));
+          renderPreviewImages(serviceImagesPreviewEl, arr);
         }
       });
     }
@@ -951,6 +972,7 @@ $showNameModal = $userName === '';
     const workTitleEl = document.getElementById('workTitle');
     const workImagesEl = document.getElementById('workImages');
     const workImagesLabelEl = document.getElementById('workImagesLabel');
+    const workImagesPreviewEl = document.getElementById('workImagesPreview');
 
     function openPortfolioEditor(workData = null) {
       if (!portfolioModalEl) return;
@@ -958,12 +980,14 @@ $showNameModal = $userName === '';
       if (workTitleEl) workTitleEl.value = '';
       if (workImagesEl) workImagesEl.value = '';
       if (workImagesLabelEl) workImagesLabelEl.textContent = 'Добавить изображения';
+      renderPreviewImages(workImagesPreviewEl, []);
 
       if (workData && typeof workData === 'object') {
         if (workIdEl) workIdEl.value = String(workData.id || 0);
         if (workTitleEl) workTitleEl.value = String(workData.title || '');
         if (workImagesLabelEl && Array.isArray(workData.images) && workData.images.length > 0) {
           workImagesLabelEl.textContent = 'Изображений: ' + workData.images.length;
+          renderPreviewImages(workImagesPreviewEl, workData.images);
         }
       }
 
@@ -999,6 +1023,8 @@ $showNameModal = $userName === '';
       workImagesEl.addEventListener('change', function () {
         if (this.files && this.files.length > 0) {
           workImagesLabelEl.textContent = 'Выбрано изображений: ' + this.files.length;
+          const arr = Array.from(this.files).map((f) => URL.createObjectURL(f));
+          renderPreviewImages(workImagesPreviewEl, arr);
         }
       });
     }
