@@ -1658,6 +1658,25 @@ body {
   width: 50%;
 }
 
+
+
+.profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.profile-name-row .profile-name {
+  width: auto;
+  max-width: 100%;
+  margin-bottom: 0;
+}
+
+.profile-name-row .profile-role-toggle {
+  flex: 0 0 auto;
+}
+
 .profile-description-main {
   width: 80%;
   border-radius: 5px;

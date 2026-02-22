@@ -109,7 +109,7 @@ $isBlocked = $user && (int) $user['is_blocked'] === 1;
         </div>
 
         <div class="profile-info col-8 col-lg-9">
-          <div class="d-flex align-items-center gap-3 mb-1 flex-wrap">
+          <div class="profile-name-row mb-1">
             <h3 class="profile-name"><?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?></h3>
             <div class="profile-role-toggle">
               <button class="role-btn active" type="button" disabled>
