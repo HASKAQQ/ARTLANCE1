@@ -17,6 +17,14 @@ function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
     return $stmt;
 }
 
+
+function redirectProfileArtistWithFlash(string $message): void
+{
+    $_SESSION['profile_artist_flash'] = $message;
+    header('Location: profile-artist-edit.php');
+    exit;
+}
+
 function getDbConnection(): mysqli
 {
     $conn = new mysqli('MySQL-8.0', 'root', '');
@@ -113,6 +121,11 @@ $saveMessage = '';
 $errorMessage = '';
 $services = [];
 $portfolioWorks = [];
+
+if (isset($_SESSION['profile_artist_flash'])) {
+    $saveMessage = (string) $_SESSION['profile_artist_flash'];
+    unset($_SESSION['profile_artist_flash']);
+}
 
 try {
     $conn = getDbConnection();
@@ -248,7 +261,7 @@ try {
                     }
                 }
 
-                $saveMessage = 'Работа портфолио сохранена.';
+                redirectProfileArtistWithFlash('Работа портфолио сохранена.');
             }
         }
 
@@ -259,7 +272,7 @@ try {
             $delImgs = prepareOrFail($conn, 'DELETE FROM portfolio_images WHERE work_id = ?');
             $delImgs->bind_param('i', $workId);
             $delImgs->execute();
-            $saveMessage = 'Работа портфолио удалена.';
+            redirectProfileArtistWithFlash('Работа портфолио удалена.');
         }
     }
 
@@ -321,7 +334,7 @@ try {
                     }
                 }
 
-                $saveMessage = 'Услуга сохранена.';
+                redirectProfileArtistWithFlash('Услуга сохранена.');
             }
         }
 
@@ -334,7 +347,7 @@ try {
                 $delImgs = prepareOrFail($conn, 'DELETE FROM service_images WHERE service_id = ?');
                 $delImgs->bind_param('i', $serviceId);
                 $delImgs->execute();
-                $saveMessage = 'Услуга удалена.';
+                redirectProfileArtistWithFlash('Услуга удалена.');
             }
         }
     }
@@ -387,7 +400,7 @@ try {
                 $row = $stmt->get_result()->fetch_assoc();
                 $registeredAt = (string) ($row['registered_at'] ?? '');
 
-                $saveMessage = 'Профиль сохранён.';
+                redirectProfileArtistWithFlash('Профиль сохранён.');
             }
         }
     }
