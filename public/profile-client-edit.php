@@ -43,6 +43,29 @@ function getDbConnection(): mysqli
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
 
+    $result = $conn->query('SHOW COLUMNS FROM users');
+    if ($result !== false) {
+        $existing = [];
+        while ($row = $result->fetch_assoc()) {
+            $field = (string) ($row['Field'] ?? '');
+            if ($field !== '') {
+                $existing[$field] = true;
+            }
+        }
+
+        $columnsToAdd = [
+            'social_telegram' => 'ALTER TABLE users ADD COLUMN social_telegram VARCHAR(255) DEFAULT NULL',
+            'social_whatsapp' => 'ALTER TABLE users ADD COLUMN social_whatsapp VARCHAR(255) DEFAULT NULL',
+            'social_email' => 'ALTER TABLE users ADD COLUMN social_email VARCHAR(255) DEFAULT NULL',
+        ];
+
+        foreach ($columnsToAdd as $columnName => $sql) {
+            if (!isset($existing[$columnName])) {
+                $conn->query($sql);
+            }
+        }
+    }
+
     return $conn;
 }
 
@@ -50,6 +73,9 @@ $userPhone = (string) ($_SESSION['user_phone'] ?? '');
 $userName = '';
 $avatarPath = '';
 $registeredAt = '';
+$telegramLink = '';
+$whatsappLink = '';
+$emailLink = '';
 $saveMessage = '';
 $errorMessage = '';
 
@@ -74,8 +100,67 @@ try {
         }
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_social_link'])) {
+        $socialType = (string) ($_POST['social_type'] ?? '');
+        $socialLink = trim((string) ($_POST['social_link'] ?? ''));
+
+        $columnMap = [
+            'telegram' => 'social_telegram',
+            'whatsapp' => 'social_whatsapp',
+            'email' => 'social_email',
+        ];
+
+        if (!isset($columnMap[$socialType])) {
+            $errorMessage = 'Неизвестный тип соцсети.';
+        } elseif ($socialLink === '') {
+            $errorMessage = 'Введите ссылку или почту.';
+        } else {
+            if ($socialType === 'email') {
+                if (!filter_var($socialLink, FILTER_VALIDATE_EMAIL)) {
+                    $errorMessage = 'Введите корректный email.';
+                }
+            } else {
+                if (!preg_match('~^https?://~i', $socialLink)) {
+                    $socialLink = 'https://' . $socialLink;
+                }
+                if (!filter_var($socialLink, FILTER_VALIDATE_URL)) {
+                    $errorMessage = 'Введите корректную ссылку.';
+                }
+            }
+        }
+
+        if ($errorMessage === '') {
+            $column = $columnMap[$socialType];
+            $sql = "INSERT INTO users (phone, {$column}) VALUES (?, ?) ON DUPLICATE KEY UPDATE {$column} = VALUES({$column})";
+            $stmt = prepareOrFail($conn, $sql);
+            $stmt->bind_param('ss', $userPhone, $socialLink);
+            $stmt->execute();
+            $saveMessage = 'Ссылка сохранена.';
+        }
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_social_link'])) {
+        $socialType = (string) ($_POST['social_type'] ?? '');
+        $columnMap = [
+            'telegram' => 'social_telegram',
+            'whatsapp' => 'social_whatsapp',
+            'email' => 'social_email',
+        ];
+
+        if (!isset($columnMap[$socialType])) {
+            $errorMessage = 'Неизвестный тип соцсети.';
+        } else {
+            $column = $columnMap[$socialType];
+            $sql = "UPDATE users SET {$column} = NULL WHERE phone = ?";
+            $stmt = prepareOrFail($conn, $sql);
+            $stmt->bind_param('s', $userPhone);
+            $stmt->execute();
+            $saveMessage = 'Ссылка удалена.';
+        }
+    }
+
     if ($userPhone !== '') {
-        $stmt = prepareOrFail($conn, 'SELECT name, avatar_path, registered_at FROM users WHERE phone = ? LIMIT 1');
+        $stmt = prepareOrFail($conn, 'SELECT name, avatar_path, registered_at, social_telegram, social_whatsapp, social_email FROM users WHERE phone = ? LIMIT 1');
         $stmt->bind_param('s', $userPhone);
         $stmt->execute();
         $existing = $stmt->get_result()->fetch_assoc();
@@ -84,6 +169,9 @@ try {
             $userName = (string) ($existing['name'] ?? '');
             $avatarPath = (string) ($existing['avatar_path'] ?? '');
             $registeredAt = (string) ($existing['registered_at'] ?? '');
+            $telegramLink = (string) ($existing['social_telegram'] ?? '');
+            $whatsappLink = (string) ($existing['social_whatsapp'] ?? '');
+            $emailLink = (string) ($existing['social_email'] ?? '');
         }
     }
 
@@ -168,6 +256,11 @@ $avatarSrc = $avatarPath !== '' ? htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF
             <div class="avatar-overlay position-absolute"><span class="avatar-overlay-text">Сменить<br>аватар</span></div>
             <input type="file" name="avatar_file" id="avatarFileInput" class="d-none" accept="image/*">
           </div>
+          <div class="profile-contacts">
+            <button type="button" class="contact-link-btn" onclick="openSocialLinkModal('telegram', <?php echo json_encode($telegramLink, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/icons8-телеграм-100 1.svg" alt="Telegram"></button>
+            <button type="button" class="contact-link-btn" onclick="openSocialLinkModal('whatsapp', <?php echo json_encode($whatsappLink, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/icons8-whatsapp-100 1.svg" alt="WhatsApp"></button>
+            <button type="button" class="contact-link-btn" onclick="openSocialLinkModal('email', <?php echo json_encode($emailLink, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email"></button>
+          </div>
           <div class="profile-balance"><span class="balance-label">Баланс, руб</span></div>
         </div>
 
@@ -189,7 +282,67 @@ $avatarSrc = $avatarPath !== '' ? htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF
     </div>
   </section>
 
+  <div class="modal-overlay" id="socialLinkModal" onclick="closeModalOnOverlay(event, 'socialLinkModal')">
+    <div class="modal-content" style="position:relative;">
+      <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closeSocialLinkModal()"></button>
+      <h3 class="modal-title" id="socialLinkTitle">Ссылка на соцсеть</h3>
+      <form method="post" class="service-modal-form">
+        <input type="hidden" name="social_type" id="socialType" value="telegram">
+        <input type="text" class="modal-input" name="social_link" id="socialLinkInput" placeholder="Вставьте ссылку или почту" maxlength="255">
+        <div class="modal-buttons d-flex gap-2">
+          <button class="btn-modal-save" type="submit" name="save_social_link">Сохранить</button>
+          <button class="btn-modal-delete" type="submit" name="delete_social_link">Удалить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="dropdown-edit" id="socialLinkModalDropdown"></div>
+
   <?php include 'footer.php'; ?>
+  <script>
+    const avatarImageEl = document.getElementById('avatarImage');
+    const avatarFileInputEl = document.getElementById('avatarFileInput');
+    const avatarOverlayEl = document.querySelector('.avatar-overlay');
+    const socialLinkModalEl = document.getElementById('socialLinkModal');
+    const socialLinkTitleEl = document.getElementById('socialLinkTitle');
+    const socialTypeEl = document.getElementById('socialType');
+    const socialLinkInputEl = document.getElementById('socialLinkInput');
+
+    if (avatarImageEl && avatarFileInputEl) {
+      avatarImageEl.addEventListener('click', () => avatarFileInputEl.click());
+    }
+
+    if (avatarOverlayEl && avatarFileInputEl) {
+      avatarOverlayEl.addEventListener('click', () => avatarFileInputEl.click());
+    }
+
+    function openSocialLinkModal(type, currentLink) {
+      if (!socialLinkModalEl || !socialTypeEl || !socialLinkInputEl) return;
+      socialTypeEl.value = String(type || 'telegram');
+      socialLinkInputEl.value = String(currentLink || '');
+
+      if (socialTypeEl.value === 'telegram') {
+        if (socialLinkTitleEl) socialLinkTitleEl.textContent = 'Ссылка на Telegram';
+        socialLinkInputEl.placeholder = 'Вставьте ссылку на Telegram';
+      } else if (socialTypeEl.value === 'whatsapp') {
+        if (socialLinkTitleEl) socialLinkTitleEl.textContent = 'Ссылка на WhatsApp';
+        socialLinkInputEl.placeholder = 'Вставьте ссылку на WhatsApp';
+      } else {
+        if (socialLinkTitleEl) socialLinkTitleEl.textContent = 'Почта';
+        socialLinkInputEl.placeholder = 'Введите email';
+      }
+
+      socialLinkModalEl.style.display = 'block';
+      const socialLinkModalDropdownEl = document.getElementById('socialLinkModalDropdown');
+      if (socialLinkModalDropdownEl) socialLinkModalDropdownEl.style.display = 'flex';
+    }
+
+    function closeSocialLinkModal() {
+      if (socialLinkModalEl) socialLinkModalEl.style.display = 'none';
+      const socialLinkModalDropdownEl = document.getElementById('socialLinkModalDropdown');
+      if (socialLinkModalDropdownEl) socialLinkModalDropdownEl.style.display = 'none';
+    }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
