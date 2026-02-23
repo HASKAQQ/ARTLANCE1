@@ -45,6 +45,34 @@ function parsePositiveIntList(string $raw): array
     return array_values($ints);
 }
 
+function ensureUsersSocialColumns(mysqli $conn): void
+{
+    $result = $conn->query('SHOW COLUMNS FROM users');
+    if ($result === false) {
+        return;
+    }
+
+    $existing = [];
+    while ($row = $result->fetch_assoc()) {
+        $field = (string) ($row['Field'] ?? '');
+        if ($field !== '') {
+            $existing[$field] = true;
+        }
+    }
+
+    $columnsToAdd = [
+        'social_telegram' => 'ALTER TABLE users ADD COLUMN social_telegram VARCHAR(255) DEFAULT NULL',
+        'social_whatsapp' => 'ALTER TABLE users ADD COLUMN social_whatsapp VARCHAR(255) DEFAULT NULL',
+        'social_email' => 'ALTER TABLE users ADD COLUMN social_email VARCHAR(255) DEFAULT NULL',
+    ];
+
+    foreach ($columnsToAdd as $columnName => $sql) {
+        if (!isset($existing[$columnName])) {
+            $conn->query($sql);
+        }
+    }
+}
+
 function getDbConnection(): mysqli
 {
     $conn = new mysqli('MySQL-8.0', 'root', '');
@@ -153,9 +181,7 @@ if (isset($_SESSION['profile_artist_flash'])) {
 try {
     $conn = getDbConnection();
 
-    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS social_telegram VARCHAR(255) DEFAULT NULL');
-    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS social_whatsapp VARCHAR(255) DEFAULT NULL');
-    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS social_email VARCHAR(255) DEFAULT NULL');
+    ensureUsersSocialColumns($conn);
 
     if ($userPhone !== '' && isset($_GET['set_role'])) {
         $setRole = (string) $_GET['set_role'];
