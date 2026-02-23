@@ -25,6 +25,26 @@ function redirectProfileArtistWithFlash(string $message): void
     exit;
 }
 
+function parsePositiveIntList(string $raw): array
+{
+    if ($raw === '') {
+        return [];
+    }
+
+    $parts = array_filter(array_map('trim', explode(',', $raw)), static fn($v) => $v !== '');
+    $ints = [];
+    foreach ($parts as $part) {
+        if (ctype_digit($part)) {
+            $value = (int) $part;
+            if ($value > 0) {
+                $ints[$value] = $value;
+            }
+        }
+    }
+
+    return array_values($ints);
+}
+
 function getDbConnection(): mysqli
 {
     $conn = new mysqli('MySQL-8.0', 'root', '');
@@ -218,6 +238,7 @@ try {
 
         if ($portfolioAction === 'save_work') {
             $workTitle = trim((string) ($_POST['work_title'] ?? ''));
+            $deletePortfolioImageIds = parsePositiveIntList((string) ($_POST['delete_portfolio_image_ids'] ?? ''));
             if ($workTitle === '') {
                 $errorMessage = 'Введите название работы.';
             } else {
@@ -225,6 +246,15 @@ try {
                     $updWork = prepareOrFail($conn, 'UPDATE portfolio_works SET title = ? WHERE id = ? AND user_phone = ?');
                     $updWork->bind_param('sis', $workTitle, $workId, $userPhone);
                     $updWork->execute();
+
+                    if (count($deletePortfolioImageIds) > 0) {
+                        $placeholders = implode(',', array_fill(0, count($deletePortfolioImageIds), '?'));
+                        $types = 'i' . str_repeat('i', count($deletePortfolioImageIds));
+                        $params = array_merge([$workId], $deletePortfolioImageIds);
+                        $delSelected = prepareOrFail($conn, "DELETE FROM portfolio_images WHERE work_id = ? AND id IN ($placeholders)");
+                        $delSelected->bind_param($types, ...$params);
+                        $delSelected->execute();
+                    }
                 } else {
                     $insWork = prepareOrFail($conn, 'INSERT INTO portfolio_works (user_phone, title) VALUES (?, ?)');
                     $insWork->bind_param('ss', $userPhone, $workTitle);
@@ -285,6 +315,7 @@ try {
             $serviceCategory = trim((string) ($_POST['service_category'] ?? ''));
             $servicePrice = (float) str_replace(',', '.', (string) ($_POST['service_price'] ?? '0'));
             $serviceDescription = trim((string) ($_POST['service_description'] ?? ''));
+            $deleteServiceImageIds = parsePositiveIntList((string) ($_POST['delete_service_image_ids'] ?? ''));
 
             if ($serviceTitle === '' || $serviceCategory === '') {
                 $errorMessage = 'Для услуги нужно заполнить название и категорию.';
@@ -293,6 +324,15 @@ try {
                     $upd = prepareOrFail($conn, 'UPDATE artist_services SET title = ?, category = ?, price = ?, description = ? WHERE id = ? AND user_phone = ?');
                     $upd->bind_param('ssdsis', $serviceTitle, $serviceCategory, $servicePrice, $serviceDescription, $serviceId, $userPhone);
                     $upd->execute();
+
+                    if (count($deleteServiceImageIds) > 0) {
+                        $placeholders = implode(',', array_fill(0, count($deleteServiceImageIds), '?'));
+                        $types = 'i' . str_repeat('i', count($deleteServiceImageIds));
+                        $params = array_merge([$serviceId], $deleteServiceImageIds);
+                        $delSelected = prepareOrFail($conn, "DELETE FROM service_images WHERE service_id = ? AND id IN ($placeholders)");
+                        $delSelected->bind_param($types, ...$params);
+                        $delSelected->execute();
+                    }
                 } else {
                     $ins = prepareOrFail($conn, 'INSERT INTO artist_services (user_phone, title, category, price, description, image_path) VALUES (?, ?, ?, ?, ?, "")');
                     $ins->bind_param('sssds', $userPhone, $serviceTitle, $serviceCategory, $servicePrice, $serviceDescription);
@@ -333,6 +373,15 @@ try {
                         }
                     }
                 }
+
+                $mainImageStmt = prepareOrFail($conn, 'SELECT image_path FROM service_images WHERE service_id = ? ORDER BY sort_order ASC, id ASC LIMIT 1');
+                $mainImageStmt->bind_param('i', $serviceId);
+                $mainImageStmt->execute();
+                $mainImageRow = $mainImageStmt->get_result()->fetch_assoc();
+                $mainImagePath = (string) ($mainImageRow['image_path'] ?? '');
+                $setMain = prepareOrFail($conn, 'UPDATE artist_services SET image_path = ? WHERE id = ? AND user_phone = ?');
+                $setMain->bind_param('sis', $mainImagePath, $serviceId, $userPhone);
+                $setMain->execute();
 
                 redirectProfileArtistWithFlash('Услуга сохранена.');
             }
@@ -409,16 +458,19 @@ try {
     $portfolioStmt->execute();
     $portfolioRes = $portfolioStmt->get_result();
     while ($work = $portfolioRes->fetch_assoc()) {
-        $imgStmt = prepareOrFail($conn, 'SELECT image_path FROM portfolio_images WHERE work_id = ? ORDER BY sort_order ASC, id ASC');
+        $imgStmt = prepareOrFail($conn, 'SELECT id, image_path FROM portfolio_images WHERE work_id = ? ORDER BY sort_order ASC, id ASC');
         $workId = (int) $work['id'];
         $imgStmt->bind_param('i', $workId);
         $imgStmt->execute();
         $imgRes = $imgStmt->get_result();
         $images = [];
+        $imageItems = [];
         while ($img = $imgRes->fetch_assoc()) {
             $images[] = (string) $img['image_path'];
+            $imageItems[] = ['id' => (int) ($img['id'] ?? 0), 'path' => (string) ($img['image_path'] ?? '')];
         }
         $work['images'] = $images;
+        $work['image_items'] = $imageItems;
         $portfolioWorks[] = $work;
     }
 
@@ -427,19 +479,22 @@ try {
     $servicesStmt->execute();
     $servicesRes = $servicesStmt->get_result();
     while ($serviceRow = $servicesRes->fetch_assoc()) {
-        $imgStmt = prepareOrFail($conn, 'SELECT image_path FROM service_images WHERE service_id = ? ORDER BY sort_order ASC, id ASC');
+        $imgStmt = prepareOrFail($conn, 'SELECT id, image_path FROM service_images WHERE service_id = ? ORDER BY sort_order ASC, id ASC');
         $serviceId = (int) $serviceRow['id'];
         $imgStmt->bind_param('i', $serviceId);
         $imgStmt->execute();
         $imgRes = $imgStmt->get_result();
         $images = [];
+        $imageItems = [];
         while ($img = $imgRes->fetch_assoc()) {
             $images[] = (string) $img['image_path'];
+            $imageItems[] = ['id' => (int) ($img['id'] ?? 0), 'path' => (string) ($img['image_path'] ?? '')];
         }
         if (count($images) === 0 && (string) ($serviceRow['image_path'] ?? '') !== '') {
             $images[] = (string) $serviceRow['image_path'];
         }
         $serviceRow['images'] = $images;
+        $serviceRow['image_items'] = $imageItems;
         $services[] = $serviceRow;
     }
 
@@ -758,6 +813,7 @@ $showNameModal = $userName === '';
       <form method="post" enctype="multipart/form-data" id="portfolioForm" class="service-modal-form">
         <input type="hidden" name="portfolio_action" value="save_work">
         <input type="hidden" name="work_id" id="workId" value="0">
+        <input type="hidden" name="delete_portfolio_image_ids" id="deletePortfolioImageIds" value="">
         <input type="text" class="modal-input" name="work_title" id="workTitle" placeholder="Название работы" required>
         <div class="modal-image-upload large">
           <span id="workImagesLabel">Добавить изображения</span>
@@ -780,6 +836,7 @@ $showNameModal = $userName === '';
       <form method="post" enctype="multipart/form-data" id="serviceForm" class="service-modal-form">
         <input type="hidden" name="service_action" id="serviceAction" value="save_service">
         <input type="hidden" name="service_id" id="serviceId" value="0">
+        <input type="hidden" name="delete_service_image_ids" id="deleteServiceImageIds" value="">
         <div class="modal-image-upload">
           <span id="serviceImageLabel">Добавить изображения</span>
           <input type="file" name="service_images[]" id="serviceImage" class="d-none" accept="image/png,image/jpeg,image/webp" multiple>
@@ -899,18 +956,119 @@ $showNameModal = $userName === '';
     const serviceImageEl = document.getElementById('serviceImage');
     const serviceImageLabelEl = document.getElementById('serviceImageLabel');
     const serviceImagesPreviewEl = document.getElementById('serviceImagesPreview');
+    const deleteServiceImageIdsEl = document.getElementById('deleteServiceImageIds');
 
-    function renderPreviewImages(container, images) {
+    const portfolioModalEl = document.getElementById('portfolioModal');
+    const workIdEl = document.getElementById('workId');
+    const workTitleEl = document.getElementById('workTitle');
+    const workImagesEl = document.getElementById('workImages');
+    const workImagesLabelEl = document.getElementById('workImagesLabel');
+    const workImagesPreviewEl = document.getElementById('workImagesPreview');
+    const deletePortfolioImageIdsEl = document.getElementById('deletePortfolioImageIds');
+
+    const pendingDeleteServiceImageIds = new Set();
+    const pendingDeletePortfolioImageIds = new Set();
+    let selectedServiceFiles = [];
+    let selectedWorkFiles = [];
+    let existingServiceImages = [];
+    let existingWorkImages = [];
+
+    function syncDeletedImageIdsField(fieldEl, idsSet) {
+      if (!fieldEl) return;
+      fieldEl.value = Array.from(idsSet).join(',');
+    }
+
+    function renderPreviewImages(container, images, options = {}) {
       if (!container) return;
       container.innerHTML = '';
       if (!Array.isArray(images) || images.length === 0) return;
 
-      images.forEach((src) => {
+      const onRemove = typeof options.onRemove === 'function' ? options.onRemove : null;
+
+      images.forEach((item) => {
+        const src = typeof item === 'string' ? item : String(item.path || '');
+        const imageId = (item && typeof item === 'object' && Number(item.id) > 0) ? Number(item.id) : null;
+        const newFileIndex = (item && typeof item === 'object' && Number.isInteger(item.newFileIndex)) ? item.newFileIndex : null;
+        if (src === '') return;
+
+        const card = document.createElement('div');
+        card.className = 'modal-image-thumb-wrap';
+
         const img = document.createElement('img');
         img.className = 'modal-image-thumb';
         img.src = src;
         img.alt = 'preview';
-        container.appendChild(img);
+        card.appendChild(img);
+
+        if (onRemove) {
+          const removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'modal-image-remove-btn';
+          removeBtn.textContent = '×';
+          removeBtn.addEventListener('click', () => {
+            onRemove({ id: imageId, src, newFileIndex });
+          });
+          card.appendChild(removeBtn);
+        }
+
+        container.appendChild(card);
+      });
+    }
+
+    function setInputFiles(inputEl, filesArray) {
+      if (!inputEl) return;
+      const transfer = new DataTransfer();
+      (filesArray || []).forEach((file) => transfer.items.add(file));
+      inputEl.files = transfer.files;
+    }
+
+    function refreshServiceImagesPreview() {
+      const visibleExisting = existingServiceImages.filter((item) => !pendingDeleteServiceImageIds.has(Number(item.id || 0)));
+      const newImages = selectedServiceFiles.map((file, index) => ({
+        path: URL.createObjectURL(file),
+        newFileIndex: index
+      }));
+
+      renderPreviewImages(serviceImagesPreviewEl, [...visibleExisting, ...newImages], {
+        onRemove: ({ id, newFileIndex }) => {
+          if (id) {
+            pendingDeleteServiceImageIds.add(Number(id));
+            syncDeletedImageIdsField(deleteServiceImageIdsEl, pendingDeleteServiceImageIds);
+          }
+          if (Number.isInteger(newFileIndex)) {
+            selectedServiceFiles.splice(newFileIndex, 1);
+            setInputFiles(serviceImageEl, selectedServiceFiles);
+            serviceImageLabelEl.textContent = selectedServiceFiles.length > 0
+              ? ('Выбрано изображений: ' + selectedServiceFiles.length)
+              : 'Добавить изображения';
+          }
+          refreshServiceImagesPreview();
+        }
+      });
+    }
+
+    function refreshPortfolioImagesPreview() {
+      const visibleExisting = existingWorkImages.filter((item) => !pendingDeletePortfolioImageIds.has(Number(item.id || 0)));
+      const newImages = selectedWorkFiles.map((file, index) => ({
+        path: URL.createObjectURL(file),
+        newFileIndex: index
+      }));
+
+      renderPreviewImages(workImagesPreviewEl, [...visibleExisting, ...newImages], {
+        onRemove: ({ id, newFileIndex }) => {
+          if (id) {
+            pendingDeletePortfolioImageIds.add(Number(id));
+            syncDeletedImageIdsField(deletePortfolioImageIdsEl, pendingDeletePortfolioImageIds);
+          }
+          if (Number.isInteger(newFileIndex)) {
+            selectedWorkFiles.splice(newFileIndex, 1);
+            setInputFiles(workImagesEl, selectedWorkFiles);
+            workImagesLabelEl.textContent = selectedWorkFiles.length > 0
+              ? ('Выбрано изображений: ' + selectedWorkFiles.length)
+              : 'Добавить изображения';
+          }
+          refreshPortfolioImagesPreview();
+        }
       });
     }
 
@@ -923,7 +1081,11 @@ $showNameModal = $userName === '';
       if (serviceDescriptionEl) serviceDescriptionEl.value = '';
       if (serviceImageEl) serviceImageEl.value = '';
       if (serviceImageLabelEl) serviceImageLabelEl.textContent = 'Добавить изображения';
-      renderPreviewImages(serviceImagesPreviewEl, []);
+      pendingDeleteServiceImageIds.clear();
+      syncDeletedImageIdsField(deleteServiceImageIdsEl, pendingDeleteServiceImageIds);
+      selectedServiceFiles = [];
+      existingServiceImages = [];
+      setInputFiles(serviceImageEl, selectedServiceFiles);
 
       if (serviceData && typeof serviceData === 'object') {
         if (serviceIdEl) serviceIdEl.value = String(serviceData.id || 0);
@@ -931,12 +1093,18 @@ $showNameModal = $userName === '';
         if (serviceCategoryEl) serviceCategoryEl.value = String(serviceData.category || '');
         if (servicePriceEl) servicePriceEl.value = String(serviceData.price || '');
         if (serviceDescriptionEl) serviceDescriptionEl.value = String(serviceData.description || '');
-        if (serviceImageLabelEl && Array.isArray(serviceData.images) && serviceData.images.length > 0) {
-          serviceImageLabelEl.textContent = 'Изображений: ' + serviceData.images.length;
-          renderPreviewImages(serviceImagesPreviewEl, serviceData.images);
+
+        const serviceImagesForPreview = Array.isArray(serviceData.image_items) && serviceData.image_items.length > 0
+          ? serviceData.image_items
+          : (Array.isArray(serviceData.images) ? serviceData.images.map((path) => ({ path })) : []);
+
+        if (serviceImageLabelEl && serviceImagesForPreview.length > 0) {
+          serviceImageLabelEl.textContent = 'Изображений: ' + serviceImagesForPreview.length;
         }
+        existingServiceImages = serviceImagesForPreview;
       }
 
+      refreshServiceImagesPreview();
       serviceModalEl.style.display = 'block';
       const serviceModalDropdown = document.getElementById('serviceModalDropdown');
       if (serviceModalDropdown) serviceModalDropdown.style.display = 'flex';
@@ -968,20 +1136,13 @@ $showNameModal = $userName === '';
       serviceImageLabelEl.addEventListener('click', () => serviceImageEl.click());
       serviceImageEl.addEventListener('change', function () {
         if (this.files && this.files.length > 0) {
-          serviceImageLabelEl.textContent = 'Выбрано изображений: ' + this.files.length;
-          const arr = Array.from(this.files).map((f) => URL.createObjectURL(f));
-          renderPreviewImages(serviceImagesPreviewEl, arr);
+          selectedServiceFiles = [...selectedServiceFiles, ...Array.from(this.files)];
+          setInputFiles(serviceImageEl, selectedServiceFiles);
+          serviceImageLabelEl.textContent = 'Выбрано изображений: ' + selectedServiceFiles.length;
+          refreshServiceImagesPreview();
         }
       });
     }
-
-
-    const portfolioModalEl = document.getElementById('portfolioModal');
-    const workIdEl = document.getElementById('workId');
-    const workTitleEl = document.getElementById('workTitle');
-    const workImagesEl = document.getElementById('workImages');
-    const workImagesLabelEl = document.getElementById('workImagesLabel');
-    const workImagesPreviewEl = document.getElementById('workImagesPreview');
 
     function openPortfolioEditor(workData = null) {
       if (!portfolioModalEl) return;
@@ -989,17 +1150,27 @@ $showNameModal = $userName === '';
       if (workTitleEl) workTitleEl.value = '';
       if (workImagesEl) workImagesEl.value = '';
       if (workImagesLabelEl) workImagesLabelEl.textContent = 'Добавить изображения';
-      renderPreviewImages(workImagesPreviewEl, []);
+      pendingDeletePortfolioImageIds.clear();
+      syncDeletedImageIdsField(deletePortfolioImageIdsEl, pendingDeletePortfolioImageIds);
+      selectedWorkFiles = [];
+      existingWorkImages = [];
+      setInputFiles(workImagesEl, selectedWorkFiles);
 
       if (workData && typeof workData === 'object') {
         if (workIdEl) workIdEl.value = String(workData.id || 0);
         if (workTitleEl) workTitleEl.value = String(workData.title || '');
-        if (workImagesLabelEl && Array.isArray(workData.images) && workData.images.length > 0) {
-          workImagesLabelEl.textContent = 'Изображений: ' + workData.images.length;
-          renderPreviewImages(workImagesPreviewEl, workData.images);
+
+        const workImagesForPreview = Array.isArray(workData.image_items) && workData.image_items.length > 0
+          ? workData.image_items
+          : (Array.isArray(workData.images) ? workData.images.map((path) => ({ path })) : []);
+
+        if (workImagesLabelEl && workImagesForPreview.length > 0) {
+          workImagesLabelEl.textContent = 'Изображений: ' + workImagesForPreview.length;
         }
+        existingWorkImages = workImagesForPreview;
       }
 
+      refreshPortfolioImagesPreview();
       portfolioModalEl.style.display = 'block';
       const portfolioModalDropdown = document.getElementById('portfolioModalDropdown');
       if (portfolioModalDropdown) portfolioModalDropdown.style.display = 'flex';
@@ -1031,9 +1202,10 @@ $showNameModal = $userName === '';
       workImagesLabelEl.addEventListener('click', () => workImagesEl.click());
       workImagesEl.addEventListener('change', function () {
         if (this.files && this.files.length > 0) {
-          workImagesLabelEl.textContent = 'Выбрано изображений: ' + this.files.length;
-          const arr = Array.from(this.files).map((f) => URL.createObjectURL(f));
-          renderPreviewImages(workImagesPreviewEl, arr);
+          selectedWorkFiles = [...selectedWorkFiles, ...Array.from(this.files)];
+          setInputFiles(workImagesEl, selectedWorkFiles);
+          workImagesLabelEl.textContent = 'Выбрано изображений: ' + selectedWorkFiles.length;
+          refreshPortfolioImagesPreview();
         }
       });
     }

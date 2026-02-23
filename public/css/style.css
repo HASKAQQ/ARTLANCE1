@@ -1623,7 +1623,7 @@ body {
   background-color: #fff;
   border: 5px solid #6B6B6B;
   border-radius: 5px;
-  z-index: 10;
+  z-index: 2000;
   padding: 41px 37px 44px 35px;
 
   h3 {
@@ -1667,6 +1667,29 @@ body {
   object-fit: cover;
   border-radius: 6px;
   border: 1px solid #cfcfcf;
+}
+
+.modal-image-thumb-wrap {
+  position: relative;
+}
+
+.modal-image-remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .modal-image-upload.large {
@@ -1735,6 +1758,7 @@ body {
 }
 
 .dropdown-edit {
+  z-index: 1900;
   display: none;
   position: fixed;
   top: 0;
@@ -2685,4 +2709,3 @@ body {
     height: 60px;
   }
 }
-
