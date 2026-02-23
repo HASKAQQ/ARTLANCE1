@@ -1724,6 +1724,16 @@ body {
   resize: vertical;
 }
 
+#serviceModal.modal-overlay {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  padding: 28px 24px;
+}
+
 .dropdown-edit {
   display: none;
   position: fixed;
@@ -2675,5 +2685,4 @@ body {
     height: 60px;
   }
 }
-
 
