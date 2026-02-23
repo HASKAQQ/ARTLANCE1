@@ -1396,6 +1396,7 @@ body {
 .portfolio-card {
   position: relative;
   overflow: hidden;
+  cursor: pointer;
   aspect-ratio: 1 / 1;
   width: 100%;
   border-radius: 5px;
