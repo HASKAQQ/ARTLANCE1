@@ -1129,6 +1129,17 @@ body {
   justify-content: space-evenly;
 }
 
+.contact-link-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.contact-link-btn img {
+  display: block;
+}
+
 .profile-balance {
   margin-top: 5%;
 }

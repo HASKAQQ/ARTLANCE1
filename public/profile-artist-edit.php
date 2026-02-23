@@ -137,6 +137,9 @@ $userPhone = $_SESSION['user_phone'] ?? '';
 $userName = '';
 $avatarPath = '';
 $registeredAt = '';
+$telegramLink = '';
+$whatsappLink = '';
+$emailLink = '';
 $saveMessage = '';
 $errorMessage = '';
 $services = [];
@@ -149,6 +152,10 @@ if (isset($_SESSION['profile_artist_flash'])) {
 
 try {
     $conn = getDbConnection();
+
+    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS social_telegram VARCHAR(255) DEFAULT NULL');
+    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS social_whatsapp VARCHAR(255) DEFAULT NULL');
+    $conn->query('ALTER TABLE users ADD COLUMN IF NOT EXISTS social_email VARCHAR(255) DEFAULT NULL');
 
     if ($userPhone !== '' && isset($_GET['set_role'])) {
         $setRole = (string) $_GET['set_role'];
@@ -213,8 +220,68 @@ try {
         exit;
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_social_link'])) {
+        $socialType = (string) ($_POST['social_type'] ?? '');
+        $socialLink = trim((string) ($_POST['social_link'] ?? ''));
+
+        $columnMap = [
+            'telegram' => 'social_telegram',
+            'whatsapp' => 'social_whatsapp',
+            'email' => 'social_email',
+        ];
+
+        if (!isset($columnMap[$socialType])) {
+            $errorMessage = 'Неизвестный тип соцсети.';
+        } elseif ($socialLink === '') {
+            $errorMessage = 'Введите ссылку или почту.';
+        } else {
+            if ($socialType === 'email') {
+                if (!filter_var($socialLink, FILTER_VALIDATE_EMAIL)) {
+                    $errorMessage = 'Введите корректный email.';
+                }
+            } else {
+                if (!preg_match('~^https?://~i', $socialLink)) {
+                    $socialLink = 'https://' . $socialLink;
+                }
+                if (!filter_var($socialLink, FILTER_VALIDATE_URL)) {
+                    $errorMessage = 'Введите корректную ссылку.';
+                }
+            }
+        }
+
+        if ($errorMessage === '') {
+            $column = $columnMap[$socialType];
+            $sql = "INSERT INTO users (phone, {$column}) VALUES (?, ?) ON DUPLICATE KEY UPDATE {$column} = VALUES({$column})";
+            $stmt = prepareOrFail($conn, $sql);
+            $stmt->bind_param('ss', $userPhone, $socialLink);
+            $stmt->execute();
+            redirectProfileArtistWithFlash('Ссылка сохранена.');
+        }
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_social_link'])) {
+        $socialType = (string) ($_POST['social_type'] ?? '');
+
+        $columnMap = [
+            'telegram' => 'social_telegram',
+            'whatsapp' => 'social_whatsapp',
+            'email' => 'social_email',
+        ];
+
+        if (!isset($columnMap[$socialType])) {
+            $errorMessage = 'Неизвестный тип соцсети.';
+        } else {
+            $column = $columnMap[$socialType];
+            $sql = "UPDATE users SET {$column} = NULL WHERE phone = ?";
+            $stmt = prepareOrFail($conn, $sql);
+            $stmt->bind_param('s', $userPhone);
+            $stmt->execute();
+            redirectProfileArtistWithFlash('Ссылка удалена.');
+        }
+    }
+
     if ($userPhone !== '') {
-        $stmt = prepareOrFail($conn, 'SELECT name, avatar_path, registered_at FROM users WHERE phone = ? LIMIT 1');
+        $stmt = prepareOrFail($conn, 'SELECT name, avatar_path, registered_at, social_telegram, social_whatsapp, social_email FROM users WHERE phone = ? LIMIT 1');
         $stmt->bind_param('s', $userPhone);
         $stmt->execute();
         $existing = $stmt->get_result()->fetch_assoc();
@@ -223,6 +290,9 @@ try {
             $userName = (string) ($existing['name'] ?? '');
             $avatarPath = (string) ($existing['avatar_path'] ?? '');
             $registeredAt = (string) ($existing['registered_at'] ?? '');
+            $telegramLink = (string) ($existing['social_telegram'] ?? '');
+            $whatsappLink = (string) ($existing['social_whatsapp'] ?? '');
+            $emailLink = (string) ($existing['social_email'] ?? '');
         } else {
             $authStmt = prepareOrFail($conn, 'SELECT created_at FROM phone_auth WHERE phone = ? ORDER BY id DESC LIMIT 1');
             $authStmt->bind_param('s', $userPhone);
@@ -505,6 +575,12 @@ try {
 $registrationLabel = $registeredAt !== '' ? 'Дата регистрации: ' . date('d.m.Y H:i', strtotime($registeredAt)) : 'Дата регистрации: ещё не заполнена';
 $avatarSrc = $avatarPath !== '' ? htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
 $showNameModal = $userName === '';
+
+$socialLinks = [
+    'telegram' => $telegramLink,
+    'whatsapp' => $whatsappLink,
+    'email' => $emailLink,
+];
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -557,9 +633,9 @@ $showNameModal = $userName === '';
             </div>
           </div>
           <div class="profile-contacts">
-            <a href=""><img src="src/image/icons/icons8-телеграм-100 1.svg" alt="Telegram"></a>
-            <a href=""><img src="src/image/icons/icons8-whatsapp-100 1.svg" alt="WhatsApp"></a>
-            <a href=""><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email"></a>
+            <button type="button" class="contact-link-btn" onclick="openSocialLinkModal('telegram', <?php echo json_encode($socialLinks['telegram'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/icons8-телеграм-100 1.svg" alt="Telegram"></button>
+            <button type="button" class="contact-link-btn" onclick="openSocialLinkModal('whatsapp', <?php echo json_encode($socialLinks['whatsapp'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/icons8-whatsapp-100 1.svg" alt="WhatsApp"></button>
+            <button type="button" class="contact-link-btn" onclick="openSocialLinkModal('email', <?php echo json_encode($socialLinks['email'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email"></button>
           </div>
           <div class="profile-balance">
             <span class="balance-label">Баланс, руб</span>
@@ -868,6 +944,22 @@ $showNameModal = $userName === '';
 
   <div class="dropdown-edit" id="serviceModalDropdown"></div>
 
+  <div class="modal-overlay" id="socialLinkModal" onclick="closeModalOnOverlay(event, 'socialLinkModal')">
+    <div class="modal-content" style="position:relative;">
+      <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closeSocialLinkModal()"></button>
+      <h3 class="modal-title" id="socialLinkTitle">Ссылка на соцсеть</h3>
+      <form method="post" class="service-modal-form">
+        <input type="hidden" name="social_type" id="socialType" value="telegram">
+        <input type="text" class="modal-input" name="social_link" id="socialLinkInput" placeholder="Вставьте ссылку или почту" maxlength="255">
+        <div class="modal-buttons d-flex gap-2">
+          <button class="btn-modal-save" type="submit" name="save_social_link">Сохранить</button>
+          <button class="btn-modal-delete" type="submit" name="delete_social_link">Удалить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="dropdown-edit" id="socialLinkModalDropdown"></div>
+
   <!-- Футер -->
     <div id="footer-placeholder"></div>
 
@@ -948,6 +1040,10 @@ $showNameModal = $userName === '';
 
 
     const serviceModalEl = document.getElementById('serviceModal');
+    const socialLinkModalEl = document.getElementById('socialLinkModal');
+    const socialLinkTitleEl = document.getElementById('socialLinkTitle');
+    const socialTypeEl = document.getElementById('socialType');
+    const socialLinkInputEl = document.getElementById('socialLinkInput');
     const serviceIdEl = document.getElementById('serviceId');
     const serviceTitleEl = document.getElementById('serviceTitle');
     const serviceCategoryEl = document.getElementById('serviceCategory');
@@ -1114,6 +1210,33 @@ $showNameModal = $userName === '';
       if (serviceModalEl) serviceModalEl.style.display = 'none';
       const serviceModalDropdown = document.getElementById('serviceModalDropdown');
       if (serviceModalDropdown) serviceModalDropdown.style.display = 'none';
+    }
+
+    function openSocialLinkModal(type, currentLink) {
+      if (!socialLinkModalEl || !socialTypeEl || !socialLinkInputEl) return;
+      socialTypeEl.value = String(type || 'telegram');
+      socialLinkInputEl.value = String(currentLink || '');
+
+      if (socialTypeEl.value === 'telegram') {
+        if (socialLinkTitleEl) socialLinkTitleEl.textContent = 'Ссылка на Telegram';
+        socialLinkInputEl.placeholder = 'Вставьте ссылку на Telegram';
+      } else if (socialTypeEl.value === 'whatsapp') {
+        if (socialLinkTitleEl) socialLinkTitleEl.textContent = 'Ссылка на WhatsApp';
+        socialLinkInputEl.placeholder = 'Вставьте ссылку на WhatsApp';
+      } else {
+        if (socialLinkTitleEl) socialLinkTitleEl.textContent = 'Почта';
+        socialLinkInputEl.placeholder = 'Введите email';
+      }
+
+      socialLinkModalEl.style.display = 'block';
+      const socialLinkModalDropdown = document.getElementById('socialLinkModalDropdown');
+      if (socialLinkModalDropdown) socialLinkModalDropdown.style.display = 'flex';
+    }
+
+    function closeSocialLinkModal() {
+      if (socialLinkModalEl) socialLinkModalEl.style.display = 'none';
+      const socialLinkModalDropdown = document.getElementById('socialLinkModalDropdown');
+      if (socialLinkModalDropdown) socialLinkModalDropdown.style.display = 'none';
     }
 
     function deleteServiceItem() {
