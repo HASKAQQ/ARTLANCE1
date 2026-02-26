@@ -1,5 +1,125 @@
 <?php
-require_once __DIR__ . '/includes/category_repository.php';
+function getCategoryDbConnection(): mysqli
+{
+    static $conn = null;
+
+    if ($conn instanceof mysqli) {
+        return $conn;
+    }
+
+    $hosts = ['localhost', '127.0.0.1', 'MySQL-8.0'];
+    $user = 'root';
+    $password = '';
+
+    foreach ($hosts as $host) {
+        $conn = @new mysqli($host, $user, $password);
+        if (!$conn->connect_error) {
+            break;
+        }
+    }
+
+    if (!$conn || $conn->connect_error) {
+        throw new RuntimeException('Не удалось подключиться к MySQL.');
+    }
+
+    $conn->query('CREATE DATABASE IF NOT EXISTS artlance CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+    $conn->select_db('artlance');
+    $conn->set_charset('utf8mb4');
+
+    initializeCategorySchema($conn);
+
+    return $conn;
+}
+
+function initializeCategorySchema(mysqli $conn): void
+{
+    $conn->query('CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        display_name VARCHAR(255) NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+
+    $conn->query('CREATE TABLE IF NOT EXISTS categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE,
+        created_by_user_id INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_created_by (created_by_user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+
+    $conn->query('CREATE TABLE IF NOT EXISTS profile_categories (
+        profile_user_id INT NOT NULL,
+        category_id INT NOT NULL,
+        PRIMARY KEY (profile_user_id, category_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+
+    $usersCount = (int) $conn->query('SELECT COUNT(*) AS total FROM users')->fetch_assoc()['total'];
+    if ($usersCount === 0) {
+        $conn->query("INSERT INTO users (display_name) VALUES ('Екатерина Кравчюк')");
+    }
+}
+
+function getAllCategories(): array
+{
+    $conn = getCategoryDbConnection();
+    $result = $conn->query('SELECT c.id, c.name, c.created_by_user_id, u.display_name AS created_by_name
+        FROM categories c
+        LEFT JOIN users u ON u.id = c.created_by_user_id
+        ORDER BY c.name');
+
+    return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+}
+
+function createCategory(string $name, ?int $createdByUserId): int
+{
+    $conn = getCategoryDbConnection();
+    $normalizedName = trim($name);
+
+    if ($normalizedName === '') {
+        throw new InvalidArgumentException('Название категории не может быть пустым.');
+    }
+
+    $stmtCheck = $conn->prepare('SELECT id FROM categories WHERE LOWER(name) = LOWER(?) LIMIT 1');
+    $stmtCheck->bind_param('s', $normalizedName);
+    $stmtCheck->execute();
+    $existing = $stmtCheck->get_result()->fetch_assoc();
+
+    if ($existing) {
+        return (int) $existing['id'];
+    }
+
+    $stmtInsert = $conn->prepare('INSERT INTO categories (name, created_by_user_id) VALUES (?, ?)');
+    $stmtInsert->bind_param('si', $normalizedName, $createdByUserId);
+    $stmtInsert->execute();
+
+    return (int) $conn->insert_id;
+}
+
+function updateCategoryName(int $categoryId, string $name): void
+{
+    $conn = getCategoryDbConnection();
+    $normalizedName = trim($name);
+
+    if ($normalizedName === '') {
+        throw new InvalidArgumentException('Название категории не может быть пустым.');
+    }
+
+    $stmt = $conn->prepare('UPDATE categories SET name = ? WHERE id = ?');
+    $stmt->bind_param('si', $normalizedName, $categoryId);
+    $stmt->execute();
+}
+
+function deleteCategory(int $categoryId): void
+{
+    $conn = getCategoryDbConnection();
+
+    $stmtProfile = $conn->prepare('DELETE FROM profile_categories WHERE category_id = ?');
+    $stmtProfile->bind_param('i', $categoryId);
+    $stmtProfile->execute();
+
+    $stmtCategory = $conn->prepare('DELETE FROM categories WHERE id = ?');
+    $stmtCategory->bind_param('i', $categoryId);
+    $stmtCategory->execute();
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
     $action = $_POST['admin_action'];
@@ -95,7 +215,7 @@ $categories = getAllCategories();
                                     <td>—</td>
                                     <td>
                                         <?php if ($category['created_by_user_id']): ?>
-                                            <a href="profile-artist-edit.php?user_id=<?= (int) $category['created_by_user_id']; ?>" class="btn btn-sm btn-outline-secondary">Профиль</a>
+                                            <a href="profile-artist.php?user_id=<?= (int) $category['created_by_user_id']; ?>" class="btn btn-sm btn-outline-secondary">Профиль</a>
                                         <?php else: ?>
                                             <button class="btn btn-sm btn-outline-secondary" disabled>Профиль</button>
                                         <?php endif; ?>

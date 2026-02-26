@@ -1,12 +1,135 @@
 <?php
 session_start();
 
-require_once __DIR__ . '/includes/category_repository.php';
-
 // Проверяем, авторизован ли пользователь
 if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true) {
     header('Location: login.php');
     exit;
+}
+
+function getCategoryDbConnection(): mysqli
+{
+    static $conn = null;
+
+    if ($conn instanceof mysqli) {
+        return $conn;
+    }
+
+    $hosts = ['localhost', '127.0.0.1', 'MySQL-8.0'];
+    $user = 'root';
+    $password = '';
+
+    foreach ($hosts as $host) {
+        $conn = @new mysqli($host, $user, $password);
+        if (!$conn->connect_error) {
+            break;
+        }
+    }
+
+    if (!$conn || $conn->connect_error) {
+        throw new RuntimeException('Не удалось подключиться к MySQL.');
+    }
+
+    $conn->query('CREATE DATABASE IF NOT EXISTS artlance CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+    $conn->select_db('artlance');
+    $conn->set_charset('utf8mb4');
+
+    initializeCategorySchema($conn);
+
+    return $conn;
+}
+
+function initializeCategorySchema(mysqli $conn): void
+{
+    $conn->query('CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        display_name VARCHAR(255) NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+
+    $conn->query('CREATE TABLE IF NOT EXISTS categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE,
+        created_by_user_id INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_created_by (created_by_user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+
+    $conn->query('CREATE TABLE IF NOT EXISTS profile_categories (
+        profile_user_id INT NOT NULL,
+        category_id INT NOT NULL,
+        PRIMARY KEY (profile_user_id, category_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+
+    $usersCount = (int) $conn->query('SELECT COUNT(*) AS total FROM users')->fetch_assoc()['total'];
+    if ($usersCount === 0) {
+        $conn->query("INSERT INTO users (display_name) VALUES ('Екатерина Кравчюк')");
+    }
+}
+
+function getAllCategories(): array
+{
+    $conn = getCategoryDbConnection();
+    $result = $conn->query('SELECT c.id, c.name, c.created_by_user_id, u.display_name AS created_by_name
+        FROM categories c
+        LEFT JOIN users u ON u.id = c.created_by_user_id
+        ORDER BY c.name');
+
+    return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+}
+
+function getUserProfileCategories(int $userId): array
+{
+    $conn = getCategoryDbConnection();
+    $stmt = $conn->prepare('SELECT c.id, c.name
+        FROM profile_categories pc
+        INNER JOIN categories c ON c.id = pc.category_id
+        WHERE pc.profile_user_id = ?
+        ORDER BY c.name');
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+function createCategory(string $name, ?int $createdByUserId): int
+{
+    $conn = getCategoryDbConnection();
+    $normalizedName = trim($name);
+
+    if ($normalizedName === '') {
+        throw new InvalidArgumentException('Название категории не может быть пустым.');
+    }
+
+    $stmtCheck = $conn->prepare('SELECT id FROM categories WHERE LOWER(name) = LOWER(?) LIMIT 1');
+    $stmtCheck->bind_param('s', $normalizedName);
+    $stmtCheck->execute();
+    $existing = $stmtCheck->get_result()->fetch_assoc();
+
+    if ($existing) {
+        return (int) $existing['id'];
+    }
+
+    $stmtInsert = $conn->prepare('INSERT INTO categories (name, created_by_user_id) VALUES (?, ?)');
+    $stmtInsert->bind_param('si', $normalizedName, $createdByUserId);
+    $stmtInsert->execute();
+
+    return (int) $conn->insert_id;
+}
+
+function addCategoryToProfile(int $userId, int $categoryId): void
+{
+    $conn = getCategoryDbConnection();
+    $stmt = $conn->prepare('INSERT IGNORE INTO profile_categories (profile_user_id, category_id) VALUES (?, ?)');
+    $stmt->bind_param('ii', $userId, $categoryId);
+    $stmt->execute();
+}
+
+function removeCategoryFromProfile(int $userId, int $categoryId): void
+{
+    $conn = getCategoryDbConnection();
+    $stmt = $conn->prepare('DELETE FROM profile_categories WHERE profile_user_id = ? AND category_id = ?');
+    $stmt->bind_param('ii', $userId, $categoryId);
+    $stmt->execute();
 }
 
 $currentUserId = 1;
