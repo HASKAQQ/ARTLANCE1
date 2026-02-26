@@ -30,9 +30,17 @@ function getCategoryDbConnection(): mysqli
         throw new RuntimeException('Не удалось подключиться к MySQL.');
     }
 
-    $conn->query('CREATE DATABASE IF NOT EXISTS artlance CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
-    $conn->select_db('artlance');
-    $conn->set_charset('utf8mb4');
+    if (!$conn->query('CREATE DATABASE IF NOT EXISTS artlance CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci')) {
+        throw new RuntimeException('Ошибка создания БД: ' . $conn->error);
+    }
+
+    if (!$conn->select_db('artlance')) {
+        throw new RuntimeException('Ошибка выбора БД: ' . $conn->error);
+    }
+
+    if (!$conn->set_charset('utf8mb4')) {
+        throw new RuntimeException('Ошибка установки кодировки: ' . $conn->error);
+    }
 
     initializeCategorySchema($conn);
 
@@ -41,28 +49,41 @@ function getCategoryDbConnection(): mysqli
 
 function initializeCategorySchema(mysqli $conn): void
 {
-    $conn->query('CREATE TABLE IF NOT EXISTS users (
+    if (!$conn->query('CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         display_name VARCHAR(255) NOT NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4')) {
+        throw new RuntimeException('Ошибка создания таблицы users: ' . $conn->error);
+    }
 
-    $conn->query('CREATE TABLE IF NOT EXISTS categories (
+    if (!$conn->query('CREATE TABLE IF NOT EXISTS categories (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
         created_by_user_id INT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_created_by (created_by_user_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4')) {
+        throw new RuntimeException('Ошибка создания таблицы categories: ' . $conn->error);
+    }
 
-    $conn->query('CREATE TABLE IF NOT EXISTS profile_categories (
+    if (!$conn->query('CREATE TABLE IF NOT EXISTS profile_categories (
         profile_user_id INT NOT NULL,
         category_id INT NOT NULL,
         PRIMARY KEY (profile_user_id, category_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4')) {
+        throw new RuntimeException('Ошибка создания таблицы profile_categories: ' . $conn->error);
+    }
 
-    $usersCount = (int) $conn->query('SELECT COUNT(*) AS total FROM users')->fetch_assoc()['total'];
+    $usersResult = $conn->query('SELECT COUNT(*) AS total FROM users');
+    if (!$usersResult) {
+        throw new RuntimeException('Ошибка чтения users: ' . $conn->error);
+    }
+
+    $usersCount = (int) $usersResult->fetch_assoc()['total'];
     if ($usersCount === 0) {
-        $conn->query("INSERT INTO users (display_name) VALUES ('Екатерина Кравчюк')");
+        if (!$conn->query("INSERT INTO users (display_name) VALUES ('Екатерина Кравчюк')")) {
+            throw new RuntimeException('Ошибка заполнения users: ' . $conn->error);
+        }
     }
 }
 
@@ -85,10 +106,16 @@ function getUserProfileCategories(int $userId): array
         INNER JOIN categories c ON c.id = pc.category_id
         WHERE pc.profile_user_id = ?
         ORDER BY c.name');
+
+    if ($stmt === false) {
+        throw new RuntimeException('Ошибка подготовки запроса категорий профиля: ' . $conn->error);
+    }
+
     $stmt->bind_param('i', $userId);
     $stmt->execute();
 
-    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $result = $stmt->get_result();
+    return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
 }
 
 function createCategory(string $name, ?int $createdByUserId): int
@@ -101,6 +128,9 @@ function createCategory(string $name, ?int $createdByUserId): int
     }
 
     $stmtCheck = $conn->prepare('SELECT id FROM categories WHERE LOWER(name) = LOWER(?) LIMIT 1');
+    if ($stmtCheck === false) {
+        throw new RuntimeException('Ошибка подготовки проверки категории: ' . $conn->error);
+    }
     $stmtCheck->bind_param('s', $normalizedName);
     $stmtCheck->execute();
     $existing = $stmtCheck->get_result()->fetch_assoc();
@@ -110,6 +140,9 @@ function createCategory(string $name, ?int $createdByUserId): int
     }
 
     $stmtInsert = $conn->prepare('INSERT INTO categories (name, created_by_user_id) VALUES (?, ?)');
+    if ($stmtInsert === false) {
+        throw new RuntimeException('Ошибка подготовки добавления категории: ' . $conn->error);
+    }
     $stmtInsert->bind_param('si', $normalizedName, $createdByUserId);
     $stmtInsert->execute();
 
@@ -120,6 +153,9 @@ function addCategoryToProfile(int $userId, int $categoryId): void
 {
     $conn = getCategoryDbConnection();
     $stmt = $conn->prepare('INSERT IGNORE INTO profile_categories (profile_user_id, category_id) VALUES (?, ?)');
+    if ($stmt === false) {
+        throw new RuntimeException('Ошибка подготовки привязки категории: ' . $conn->error);
+    }
     $stmt->bind_param('ii', $userId, $categoryId);
     $stmt->execute();
 }
@@ -128,6 +164,9 @@ function removeCategoryFromProfile(int $userId, int $categoryId): void
 {
     $conn = getCategoryDbConnection();
     $stmt = $conn->prepare('DELETE FROM profile_categories WHERE profile_user_id = ? AND category_id = ?');
+    if ($stmt === false) {
+        throw new RuntimeException('Ошибка подготовки удаления категории: ' . $conn->error);
+    }
     $stmt->bind_param('ii', $userId, $categoryId);
     $stmt->execute();
 }
@@ -187,7 +226,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-$profileCategories = getUserProfileCategories($currentUserId);
+$profileCategories = [];
+$profileLoadError = '';
+
+try {
+    $profileCategories = getUserProfileCategories($currentUserId);
+} catch (Throwable $exception) {
+    $profileLoadError = $exception->getMessage();
+}
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -250,6 +296,10 @@ $profileCategories = getUserProfileCategories($currentUserId);
           </div>
 
           <p class="profile-registration">Дата регистрации</p>
+
+          <?php if (!empty($profileLoadError)): ?>
+            <div class="alert alert-danger"><?= htmlspecialchars($profileLoadError); ?></div>
+          <?php endif; ?>
 
           <div class="profile-tags" id="profileTagsContainer">
             <?php foreach ($profileCategories as $category): ?>
