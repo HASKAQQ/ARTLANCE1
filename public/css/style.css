@@ -1113,6 +1113,30 @@ body {
   font-size: 34px;
 }
 
+.profile-tag-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.profile-tag-remove {
+  border: none;
+  background: #fff;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 18px;
+  line-height: 1;
+  color: #d32f2f;
+  cursor: pointer;
+}
+
+.category-modal-content {
+  max-width: 520px;
+  width: 100%;
+}
+
 .profile-description {
   width: 80%;
   border: 2px solid #000000;

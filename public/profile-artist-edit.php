@@ -1,11 +1,70 @@
 <?php
 session_start();
 
+require_once __DIR__ . '/includes/category_repository.php';
+
 // Проверяем, авторизован ли пользователь
 if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true) {
     header('Location: login.php');
     exit;
 }
+
+$currentUserId = 1;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    header('Content-Type: application/json; charset=utf-8');
+
+    try {
+        if ($_POST['action'] === 'list_categories') {
+            echo json_encode([
+                'success' => true,
+                'categories' => getAllCategories(),
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        if ($_POST['action'] === 'add_category') {
+            $categoryName = $_POST['category_name'] ?? '';
+            $categoryId = isset($_POST['category_id']) ? (int) $_POST['category_id'] : 0;
+
+            if ($categoryId > 0) {
+                addCategoryToProfile($currentUserId, $categoryId);
+            } else {
+                $newCategoryId = createCategory($categoryName, $currentUserId);
+                addCategoryToProfile($currentUserId, $newCategoryId);
+            }
+
+            echo json_encode([
+                'success' => true,
+                'profile_categories' => getUserProfileCategories($currentUserId),
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        if ($_POST['action'] === 'remove_category') {
+            $categoryId = isset($_POST['category_id']) ? (int) $_POST['category_id'] : 0;
+            if ($categoryId > 0) {
+                removeCategoryFromProfile($currentUserId, $categoryId);
+            }
+
+            echo json_encode([
+                'success' => true,
+                'profile_categories' => getUserProfileCategories($currentUserId),
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        throw new RuntimeException('Неизвестное действие.');
+    } catch (Throwable $exception) {
+        echo json_encode([
+            'success' => false,
+            'message' => $exception->getMessage(),
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
+$profileCategories = getUserProfileCategories($currentUserId);
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -69,11 +128,14 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
 
           <p class="profile-registration">Дата регистрации</p>
 
-          <div class="profile-tags">
-            <p class="profile-tag">3D-моделирование и визуализация</p>
-            <p class="profile-tag">Графический дизайн</p>
-            <p class="profile-tag">Цифровая живопись</p>
-            <button class="profile-tag-add">+</button>
+          <div class="profile-tags" id="profileTagsContainer">
+            <?php foreach ($profileCategories as $category): ?>
+              <div class="profile-tag-item" data-category-id="<?= (int) $category['id']; ?>">
+                <p class="profile-tag"><?= htmlspecialchars($category['name']); ?></p>
+                <button type="button" class="profile-tag-remove" onclick="removeProfileCategory(<?= (int) $category['id']; ?>)">×</button>
+              </div>
+            <?php endforeach; ?>
+            <button type="button" class="profile-tag-add" onclick="openCategoryModal()">+</button>
           </div>
 
           <textarea class="profile-description" placeholder="О себе..."></textarea>
@@ -357,6 +419,21 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
 
   <!-- Футер -->
     <div id="footer-placeholder"></div>
+
+
+  <div class="modal-overlay" id="categoryModal" onclick="closeModalOnOverlay(event, 'categoryModal')">
+    <div class="modal-content category-modal-content">
+      <h3>Категории профиля</h3>
+      <select id="existingCategorySelect" class="form-control mb-3">
+        <option value="">Выберите существующую категорию</option>
+      </select>
+      <input type="text" id="customCategoryInput" class="form-control mb-3" placeholder="Или создайте свою категорию">
+      <div class="d-flex gap-2 justify-content-end">
+        <button type="button" class="btn btn-secondary" onclick="closeCategoryModal()">Отмена</button>
+        <button type="button" class="btn btn-primary" onclick="saveProfileCategory()">Сохранить</button>
+      </div>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

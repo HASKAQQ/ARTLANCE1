@@ -258,3 +258,101 @@ if (ids.length > 0 && admIdMenus.length > 0) {
     };
   });
 }
+
+async function fetchCategoryPayload(action, payload = {}) {
+  const params = new URLSearchParams({ action, ...payload });
+  const response = await fetch('profile-artist-edit.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString()
+  });
+
+  return response.json();
+}
+
+function renderProfileCategories(categories) {
+  const tagsContainer = document.getElementById('profileTagsContainer');
+  if (!tagsContainer) return;
+
+  const addButton = tagsContainer.querySelector('.profile-tag-add');
+  tagsContainer.querySelectorAll('.profile-tag-item').forEach(item => item.remove());
+
+  categories.forEach(category => {
+    const item = document.createElement('div');
+    item.className = 'profile-tag-item';
+    item.dataset.categoryId = category.id;
+    item.innerHTML = `<p class="profile-tag">${category.name}</p>
+      <button type="button" class="profile-tag-remove" onclick="removeProfileCategory(${category.id})">×</button>`;
+
+    tagsContainer.insertBefore(item, addButton);
+  });
+}
+
+async function openCategoryModal() {
+  const modal = document.getElementById('categoryModal');
+  const select = document.getElementById('existingCategorySelect');
+  if (!modal || !select) return;
+
+  const data = await fetchCategoryPayload('list_categories');
+  if (!data.success) {
+    alert(data.message || 'Не удалось загрузить категории');
+    return;
+  }
+
+  select.innerHTML = '<option value="">Выберите существующую категорию</option>';
+  data.categories.forEach(category => {
+    const option = document.createElement('option');
+    option.value = category.id;
+    option.textContent = category.name;
+    select.appendChild(option);
+  });
+
+  modal.style.display = 'flex';
+}
+
+function closeCategoryModal() {
+  const modal = document.getElementById('categoryModal');
+  const customInput = document.getElementById('customCategoryInput');
+  const select = document.getElementById('existingCategorySelect');
+
+  if (modal) modal.style.display = 'none';
+  if (customInput) customInput.value = '';
+  if (select) select.value = '';
+}
+
+async function saveProfileCategory() {
+  const customInput = document.getElementById('customCategoryInput');
+  const select = document.getElementById('existingCategorySelect');
+  if (!customInput || !select) return;
+
+  const categoryName = customInput.value.trim();
+  const categoryId = select.value;
+
+  if (!categoryName && !categoryId) {
+    alert('Выберите категорию или введите новую.');
+    return;
+  }
+
+  const data = await fetchCategoryPayload('add_category', {
+    category_name: categoryName,
+    category_id: categoryId
+  });
+
+  if (!data.success) {
+    alert(data.message || 'Не удалось сохранить категорию');
+    return;
+  }
+
+  renderProfileCategories(data.profile_categories || []);
+  closeCategoryModal();
+}
+
+async function removeProfileCategory(categoryId) {
+  const data = await fetchCategoryPayload('remove_category', { category_id: String(categoryId) });
+  if (!data.success) {
+    alert(data.message || 'Не удалось удалить категорию');
+    return;
+  }
+
+  renderProfileCategories(data.profile_categories || []);
+}
